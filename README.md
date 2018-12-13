@@ -1,2 +1,1 @@
-# HaSQL
-UU Concepts of Program Design 2018 
+# hasql
