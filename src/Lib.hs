@@ -7,4 +7,4 @@ import           Lexer
 import           Parser
 
 someFunc :: IO ()
-someFunc = putStrLn "someFunc"
+someFunc = getContents >>= print . parse . scan
