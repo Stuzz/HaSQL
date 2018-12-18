@@ -9,12 +9,14 @@ import Syntax
 $digit = 0-9
 $alpha = [a-zA-Z]
 
+@ident = [$alpha \_] [$alpha $digit \_ \$]
+
 tokens :-
   $white+                      ;
   "#".*                        ; -- Comments
   "{"                          { const TBraceOpen }
   "}"                          { const TBraceClose }
-  $alpha [$alpha $digit \_ \-] { \s -> TIdent s }
+  @ident { \s -> TIdent s }
 
 {
 -- | Run the scanner on a string.
