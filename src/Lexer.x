@@ -12,9 +12,12 @@ $alpha = [a-zA-Z]
 @ident = [$alpha \_] [$alpha $digit \_ \$]*
 
 tokens :-
-  $white+;
+  $white+        ;
   \#.*           ; -- Comments
   \,             { const $ const TComma }
+  \:             { const $ const TColon }
+  \;             { const $ const TSemiColon }
+  \\             { const $ const TLambda }
   \{             { const $ const TBraceOpen }
   \}             { const $ const TBraceClose }
   \(             { const $ const TParenOpen }
@@ -23,15 +26,23 @@ tokens :-
   \-             { const $ const TOperSubtract }
   \*             { const $ const TOperMultiply }
   \/             { const $ const TOperDivide }
-  "++"           { const $ const TOperConcatate }
+  "++"           { const $ const TOperConcatenate }
   "=="           { const $ const TOperEquals }
   "!="           { const $ const TOperNotEquals }
   \<             { const $ const TOperLesserThan }
   "<="           { const $ const TOperLesserEquals }
   \>             { const $ const TOperGreaterThan }
   ">="           { const $ const TOperGreaterEquals }
+  "Bool"         { const $ const TTypeBool }
+  "Int"          { const $ const TTypeInt }
+  "String"       { const $ const TTypeString }
+  "Primary"      { const $ const TTypePrimary }
+  "Add"          { const $ const TFuncAdd }
+  "Split"        { const $ const TFuncSplit }
+  "Decouple"     { const $ const TFuncDecouple }
+  "Rename"       { const $ const TFuncRename }
   \" ([^\"]+) \" { \_ (_:s) -> TString $ init s }
-  @ident         { \_ s -> TIdent s }
+  @ident         { \_ s     -> TIdent s }
 
 {
 -- | Run the scanner on a string.

@@ -3,11 +3,14 @@
 module Syntax where
 
 data Token
-  = TBraceOpen
+  = TComma
+  | TColon
+  | TSemiColon
+  | TBraceOpen
+  | TLambda
   | TBraceClose
   | TParenOpen
   | TParenClose
-  | TComma
   | TOperAdd
   | TOperSubtract
   | TOperMultiply
@@ -19,6 +22,15 @@ data Token
   | TOperLesserEquals
   | TOperGreaterThan
   | TOperGreaterEquals
+  | TFuncAdd
+  | TFuncSplit
+  | TFuncDecouple
+  | TFuncNormalize
+  | TFuncRename
+  | TTypeBool
+  | TTypeInt
+  | TTypeString
+  | TTypePrimary
   | TIdent String
   | TString String
   deriving (Show, Eq)
