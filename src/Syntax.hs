@@ -5,6 +5,20 @@ module Syntax where
 data Token
   = TBraceOpen
   | TBraceClose
+  | TParenOpen
+  | TParenClose
+  | TComma
+  | TOperAdd
+  | TOperSubtract
+  | TOperMultiply
+  | TOperDivide
+  | TOperConcatenate
+  | TOperEquals
+  | TOperNotEquals
+  | TOperLesserThan
+  | TOperLesserEquals
+  | TOperGreaterThan
+  | TOperGreaterEquals
   | TIdent String
   | TString String
   deriving (Show, Eq)

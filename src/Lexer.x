@@ -14,8 +14,22 @@ $alpha = [a-zA-Z]
 tokens :-
   $white+;
   \#.*           ; -- Comments
-  "{"            { const $ const TBraceOpen }
-  "}"            { const $ const TBraceClose }
+  \,             { const $ const TComma }
+  \{             { const $ const TBraceOpen }
+  \}             { const $ const TBraceClose }
+  \(             { const $ const TParenOpen }
+  \)             { const $ const TParenClose }
+  \+             { const $ const TOperAdd }
+  \-             { const $ const TOperSubtract }
+  \*             { const $ const TOperMultiply }
+  \/             { const $ const TOperDivide }
+  "++"           { const $ const TOperConcatate }
+  "=="           { const $ const TOperEquals }
+  "!="           { const $ const TOperNotEquals }
+  \<             { const $ const TOperLesserThan }
+  "<="           { const $ const TOperLesserEquals }
+  \>             { const $ const TOperGreaterThan }
+  ">="           { const $ const TOperGreaterEquals }
   \" ([^\"]+) \" { \_ (_:s) -> TString $ init s }
   @ident         { \_ s -> TIdent s }
 
