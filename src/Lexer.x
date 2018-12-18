@@ -37,6 +37,8 @@ tokens :-
   "<="           { const $ const TOperLesserEquals }
   \>             { const $ const TOperGreaterThan }
   ">="           { const $ const TOperGreaterEquals }
+  "Up"           { const $ const TUp }
+  "Init"         { const $ const TInit }
   "Bool"         { const $ const TTypeBool }
   "Int"          { const $ const TTypeInt }
   "String"       { const $ const TTypeString }

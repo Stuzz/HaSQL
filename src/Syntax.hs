@@ -23,6 +23,8 @@ data Token
   | TOperLesserEquals
   | TOperGreaterThan
   | TOperGreaterEquals
+  | TUp
+  | TInit
   | TFuncAdd
   | TFuncSplit
   | TFuncDecouple
