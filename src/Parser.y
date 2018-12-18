@@ -14,7 +14,7 @@ import Syntax
 
 %%
 
-Block : "{" Ident "}" { $1 }
+Block : "{" Ident "}" { $2 }
 
 {
 happyError :: [Token] -> a
