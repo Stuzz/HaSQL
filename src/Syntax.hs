@@ -5,9 +5,10 @@ module Syntax where
 data Token
   = TComma
   | TColon
+  | TQuestionMark
+  | TLambda
   | TSemiColon
   | TBraceOpen
-  | TLambda
   | TBraceClose
   | TParenOpen
   | TParenClose

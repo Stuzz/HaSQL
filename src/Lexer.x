@@ -17,6 +17,7 @@ tokens :-
   \,             { const $ const TComma }
   \:             { const $ const TColon }
   \;             { const $ const TSemiColon }
+  \?             { const $ const TQuestionMark }
   \\             { const $ const TLambda }
   \{             { const $ const TBraceOpen }
   \}             { const $ const TBraceClose }
