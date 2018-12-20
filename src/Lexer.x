@@ -47,7 +47,10 @@ tokens :-
   "Split"        { const $ const TFuncSplit }
   "Decouple"     { const $ const TFuncDecouple }
   "Rename"       { const $ const TFuncRename }
+  "True"         { const $ const $ TBool True }
+  "False"        { const $ const $ TBool False }
   \" ([^\"]+) \" { \_ (_:s) -> TString $ init s }
+  $digit+        { \_ s     -> TInt $ read s }
   @ident         { \_ s     -> TIdent s }
 
 {

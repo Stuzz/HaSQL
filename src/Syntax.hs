@@ -35,6 +35,8 @@ data Token
   | TTypeString
   | TTypePrimary
   | TIdent String
+  | TBool Bool
+  | TInt Int
   | TString String
   deriving (Show, Eq)
 
