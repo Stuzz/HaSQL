@@ -8,9 +8,41 @@ import Syntax
 %tokentype { Token }
 
 %token
-  "{"   { TBraceOpen }
-  "}"   { TBraceClose }
-  Ident { TIdent $$ }
+  ","         { TComma }
+  ":"         { TColon }
+  "?"         { TQuestionMark }
+  "\\"        { TLambda }
+  ";"         { TSemiColon }
+  "{"         { TBraceOpen }
+  "}"         { TBraceClose }
+  "("         { TParenOpen }
+  ")"         { TParenClose }
+  "+"         { TOperAdd }
+  "-"         { TOperSubtract }
+  "*"         { TOperMultiply }
+  "/"         { TOperDivide }
+  "++"        { TOperConcatenate }
+  "=="        { TOperEquals }
+  "!="        { TOperNotEquals }
+  "<"         { TOperLesserThan }
+  "<="        { TOperLesserEquals }
+  ">"         { TOperGreaterThan }
+  ">="        { TOperGreaterEquals }
+  "up"        { TUp }
+  "init"      { TInit }
+  "Add"       { TFuncAdd }
+  "Split"     { TFuncSplit }
+  "Decouple"  { TFuncDecouple }
+  "Normalize" { TFuncNormalize }
+  "Rename"    { TFuncRename }
+  "Bool"      { TTypeBool }
+  "Int"       { TTypeInt }
+  "String"    { TTypeString }
+  "Primary"   { TTypePrimary }
+  Ident       { TIdent $$ }
+  String      { TString $$ }
+  Bool        { TBool $$ }
+  Int         { TInt $$ }
 
 %%
 
