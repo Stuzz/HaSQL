@@ -46,7 +46,7 @@ import Syntax
 
 %%
 
-Block : "{" Ident "}" { $2 }
+Hasql : "{" Ident "}" { Hasql (Init []) (Up []) }
 
 {
 happyError :: [Token] -> a
