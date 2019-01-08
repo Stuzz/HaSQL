@@ -24,11 +24,14 @@ tokens :-
   \\             { const $ const TLambda }
   \{             { const $ const TBraceOpen }
   \}             { const $ const TBraceClose }
+  \[             { const $ const TBracketOpen }
+  \]             { const $ const TBracketClose }
   \(             { const $ const TParenOpen }
   \)             { const $ const TParenClose }
   \+             { const $ const TOperAdd }
   \-             { const $ const TOperSubtract }
   \*             { const $ const TOperMultiply }
+  \=             { const $ const TAssignment }
   \/             { const $ const TOperDivide }
   "++"           { const $ const TOperConcatenate }
   "=="           { const $ const TOperEquals }
@@ -39,10 +42,12 @@ tokens :-
   ">="           { const $ const TOperGreaterEquals }
   "Up"           { const $ const TUp }
   "Init"         { const $ const TInit }
+  "Table"        { const $ const TTable }
   "Bool"         { const $ const TTypeBool }
   "Int"          { const $ const TTypeInt }
   "String"       { const $ const TTypeString }
-  "Primary"      { const $ const TTypePrimary }
+  "primary"      { const $ const TTypePrimary }
+  "foreign"      { const $ const TTypeForeign }
   "Add"          { const $ const TFuncAdd }
   "Split"        { const $ const TFuncSplit }
   "Decouple"     { const $ const TFuncDecouple }
