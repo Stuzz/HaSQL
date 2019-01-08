@@ -1,3 +1,5 @@
+module Algebra where
+
 import Syntax
 
 type HasqlAlgebra hasql init up table column
