@@ -6,10 +6,13 @@ data Token
   = TComma
   | TColon
   | TQuestionMark
+  | TAssignment
   | TLambda
   | TSemiColon
   | TBraceOpen
   | TBraceClose
+  | TBracketOpen
+  | TBracketClose
   | TParenOpen
   | TParenClose
   | TOperAdd
@@ -25,6 +28,7 @@ data Token
   | TOperGreaterEquals
   | TUp
   | TInit
+  | TTable
   | TFuncAdd
   | TFuncSplit
   | TFuncDecouple
@@ -34,6 +38,7 @@ data Token
   | TTypeInt
   | TTypeString
   | TTypePrimary
+  | TTypeForeign
   | TIdent String
   | TBool Bool
   | TInt Int
@@ -69,6 +74,7 @@ data Statement
   -- ^ A declaration for a named variable with the value evaluated from the
   -- expression.
   = Declaration String
+                Type
                 Expression
   -- ^ An assignment to the named variable with the the value of the expression.
   | Assignment String
@@ -106,6 +112,9 @@ data Expression
   | ConstInt Int
   -- ^ A table or column identifier.
   | Ident String
+  -- ^ A variable that has not been assigned a value yet. Basically a null
+  -- pointer without calling it a null pointer, genius!
+  | Undefined
 
 data Operator
   = OperAdd
