@@ -11,9 +11,6 @@ $alpha = [a-zA-Z]
 
 @ident = [$alpha \_] [$alpha $digit \_ \$]*
 
--- TODO: Add tokens for foreign keys after we have figured out how to handle
---       those
-
 tokens :-
   $white+        ;
   \#.*           ; -- Comments
