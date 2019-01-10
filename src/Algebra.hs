@@ -71,3 +71,4 @@ foldHasql (hasql1, init1, table1, col1, colmod1, typ1, up1, (declstat, assstat, 
     fExpression (ConstBool x) = bool1 x
     fExpression (ConstInt x) = int1 x
     fExpression (Ident x) = ident1 x
+    -- TODO: Add a case for the @Undefined@ expression. Or Not. I Don't care.
