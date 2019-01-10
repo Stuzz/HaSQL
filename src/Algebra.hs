@@ -64,7 +64,7 @@ type HasqlAlgebra hasql init up table column
 
 foldHasql :: HasqlAlgebra hasql init up table column
         colmod typ statement expression operation
-        argument lambda operator -> Hasql -> hasql
+        argument lambda operator -> Hasql -> Maybe hasql
 foldHasql (hasql1, init1, table1,
     col1, colmod1, typ1, up1,
     (declstat, assstat, operstat),
@@ -75,7 +75,8 @@ foldHasql (hasql1, init1, table1,
     operator1
     ) = fHasql'
     where
-        fHasql' (Hasql i u) = hasql1 (fInit i) (fUp u)
+        fHasql' (Hasql i u) = do
+            hasql1 (fInit i) (fUp u)
         fInit (Init ts) = init1 (map fTable ts)
         fTable (Table s cs) = table1 s (map fColumn cs)
         fColumn (Column s t cms) = col1 s (fType t) (map colmod1 cms)
