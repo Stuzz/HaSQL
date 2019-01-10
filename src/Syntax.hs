@@ -6,10 +6,13 @@ data Token
   = TComma
   | TColon
   | TQuestionMark
+  | TAssignment
   | TLambda
   | TSemiColon
   | TBraceOpen
   | TBraceClose
+  | TBracketOpen
+  | TBracketClose
   | TParenOpen
   | TParenClose
   | TOperAdd
@@ -25,6 +28,7 @@ data Token
   | TOperGreaterEquals
   | TUp
   | TInit
+  | TTable
   | TFuncAdd
   | TFuncSplit
   | TFuncDecouple
@@ -34,6 +38,7 @@ data Token
   | TTypeInt
   | TTypeString
   | TTypePrimary
+  | TTypeForeign
   | TIdent String
   | TBool Bool
   | TInt Int
@@ -66,14 +71,15 @@ data Column =
 
 -- | A single statement. A migration function consists of several statements.
 data Statement
-  -- ^ A declaration for a named variable with the value evaluated from the
+  -- | A declaration for a named variable with the value evaluated from the
   -- expression.
   = Declaration String
+                Type
                 Expression
-  -- ^ An assignment to the named variable with the the value of the expression.
+  -- | An assignment to the named variable with the the value of the expression.
   | Assignment String
                Expression
-  -- ^ A function call with the specified arguments.
+  -- | A function call with the specified arguments.
   | FunctionCall Operation
                  [Argument]
 
@@ -84,9 +90,9 @@ data Argument
   | ArgStringList [String]
 
 data ColumnModifier
-  -- ^ The table's primary key.
+  -- | The table's primary key.
   = Primary
-  -- ^ TODO: Foreign keys relations can not be defined yet.
+  -- | TODO: Foreign keys relations can not be defined yet.
   | Foreign
 
 newtype Lambda =
@@ -96,7 +102,7 @@ data Expression
   = Expr Expression
          Operator
          Expression
-  -- ^ A ternary conditional in the form 'if (Expression) then Expression else
+  -- | A ternary conditional in the form 'if (Expression) then Expression else
   -- Expression'.
   | Conditional Expression
                 Expression
@@ -104,8 +110,11 @@ data Expression
   | ConstString String
   | ConstBool Bool
   | ConstInt Int
-  -- ^ A table or column identifier.
+  -- | A table or column identifier.
   | Ident String
+  -- | A variable that has not been assigned a value yet. Basically a null
+  -- pointer without calling it a null pointer, genius!
+  | Undefined
 
 data Operator
   = OperAdd
