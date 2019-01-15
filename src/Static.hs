@@ -63,3 +63,20 @@ check h = foldHasql checkAlgebra h
             = case M.lookup s venv of
                 Just t -> (e, t)
                 Nothing -> error ("Variable " ++ s ++ " not defined" )
+
+        operexpr :: TExpression -> Operator -> TExpression -> TExpression
+        operexpr expression1 op expression2 env 
+            | op == OperAdd             = if e1type == e2type && (e1type == TypeInt)    then expression1 OperAdd expression2 else error "Arguments of addition where not both integers"
+            | op == OperSubtract        = if e1type == e2type && (e1type == TypeInt)    then expression1 OperSubtract expression2 else error "Arguments of addition where not both integers"
+            | op == OperMultiply        = if e1type == e2type && (e1type == TypeInt)    then expression1 OperMultiply expression2 else error "Arguments of addition where not both integers"
+            | op == OperDivide          = if e1type == e2type && (e1type == TypeInt)    then expression1 OperDivide expression2 else error "Arguments of addition where not both integers"
+            | op == OperConcatenate     = if e1type == e2type && (e1type == TypeString) then expression1 OperConcatenate expression2 else error "Arguments of addition where not both strings"
+            | op == OperEquals          = if e1type == e2type                           then expression1 OperEquals expression2 else error "Arguments of addition where not both booleans"
+            | op == OperNotEquals       = if e1type == e2type                           then expression1 OperNotEquals expression2 else error "Arguments of addition where not both booleans"
+            | op == OperLesserThan      = if e1type == e2type && (e1type == TypeInt)    then expression1 OperLesserThan expression2 else error "Arguments of addition where not both integers"
+            | op == OperLesserEquals    = if e1type == e2type && (e1type == TypeInt)    then expression1 OperLesserEquals expression2 else error "Arguments of addition where not both integers"
+            | op == OperGreaterThan     = if e1type == e2type && (e1type == TypeInt)    then expression1 OperGreaterThan expression2 else error "Arguments of addition where not both integers"
+            | op == OperGreaterEquals   = if e1type == e2type && (e1type == TypeInt)    then expression1 OperGreaterEquals expression2 else error "Arguments of addition where not both integers"
+            where
+             (e1, e1type) = expression1 env 
+             (e2, e2type) = expression2 env
