@@ -17,6 +17,10 @@ data TypeEnvironment = TypeEnvironment
 
 type TExpression = TypeEnvironment -> (Expression, Type)
 
+type TArgument = TypeEnvironment -> (Argument, Type)
+type TLambda = TExpression -> (Lambda, Type)
+type TOperation = [TArgument] -> (Operation, Type)
+
 check :: Hasql -> TypeEnvironment
 check = foldHasql checkAlgebra
     -- TODO: The last four types are not properly defined yet, maybe
@@ -120,3 +124,35 @@ check = foldHasql checkAlgebra
       where
         (e1, e1type) = expression1 env
         (e2, e2type) = expression2 env
+
+    operator1 :: Operator -> Operator
+    operator1 = id
+
+    lamda1 :: TExpression -> TLambda
+    lamda1 expr env -> let (e, t) = expr env in (Lambda e, t)
+
+    exprarg :: TExpression -> TArgument
+    exprarg expression env = let (e, t) = expression env in (ArgExpression e, t)
+    lamarg :: TLambda -> TArgument
+    lamarg lambda env = let (l, t) = lambda env in (ArgLambda l, t)
+    colarg :: Column -> TArgument
+    colarg c env = ArgColumn c
+    lsarg :: ArgStringList :: TArgument
+    lsarg asl env = ArgStringList als
+
+    --operation1 :: String -> [TArgument] -> TOperation 
+    --operation1 args (tenv, venv) = 
+
+    --add column
+    -- operation1 table (argColumn : []) (tenv, venv) =
+    --     case M.lookup table tenv of
+    --         (Just table_env) -> do
+    --         let (Column n t1 mds, t2) = argColumn env
+    --         case (M.lookup table_env) of
+    --             Noting -> (OperationAdd
+    --             Just t -> error ("Column "++n++" does already exist in Table "++table)
+    --         otherwise -> error ("Table "++table++" does not exist") 
+    --     case M.lookup table tenv of
+    --         Just t -> (e, t)
+    --         Nothing -> error ("Variable " ++ s ++ " not defined")
+    --     where (Column n t1 mds, t2) = argColumn env
