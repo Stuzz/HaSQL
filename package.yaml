@@ -27,7 +27,7 @@ library:
   build-tools: [alex, happy]
   dependencies:
     - array
-
+    - containers
 executables:
   hasql-exe:
     main:                Main.hs
