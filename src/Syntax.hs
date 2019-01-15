@@ -51,23 +51,28 @@ data Token
 data Hasql =
   Hasql Init
         Up
+  deriving (Show)
 
 newtype Up =
   Up [Statement]
+  deriving (Show)
 
 newtype Init =
   Init [Table]
+  deriving (Show)
 
 -- | The schema for a named table.
 data Table =
   Table String
         [Column]
+  deriving (Show)
 
 -- | A column with the specified type. The column modifier list can be empty.
 data Column =
   Column String
          Type
          [ColumnModifier]
+  deriving (Show)
 
 -- | A single statement. A migration function consists of several statements.
 data Statement
@@ -82,21 +87,25 @@ data Statement
   -- | A function call with the specified arguments.
   | FunctionCall Operation
                  [Argument]
+  deriving (Show)
 
 data Argument
   = ArgExpression Expression
   | ArgLambda Lambda
   | ArgColumn Column
   | ArgStringList [String]
+  deriving (Show)
 
 data ColumnModifier
   -- | The table's primary key.
   = Primary
   -- | TODO: Foreign keys relations can not be defined yet.
   | Foreign
+  deriving (Show)
 
 newtype Lambda =
   Lambda Expression
+  deriving (Show)
 
 data Expression
   = Expr Expression
@@ -115,6 +124,7 @@ data Expression
   -- | A variable that has not been assigned a value yet. Basically a null
   -- pointer without calling it a null pointer, genius!
   | Undefined
+  deriving (Show)
 
 data Operator
   = OperAdd
@@ -128,11 +138,13 @@ data Operator
   | OperLesserEquals
   | OperGreaterThan
   | OperGreaterEquals
+  deriving (Show)
 
 data Type
   = TypeBool
   | TypeString
   | TypeInt
+  deriving (Show)
 
 data Operation
   = OperationAdd
@@ -140,3 +152,4 @@ data Operation
   | OperationDecouple
   | OperationNormalize
   | OperationRename
+  deriving (Show)
