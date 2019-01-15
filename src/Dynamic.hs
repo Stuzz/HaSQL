@@ -90,38 +90,65 @@ assstat s c env
             = Just $ IVar { nameIVar n, typeIVar t, valueIVar c }
 
 operstat :: Operation -> [Argument] -> Migration
-operstat OperationAdd args env = doOperationAdd tableName columnName lambda
+operstat OperationAdd args env = doOperationAdd env tableName columnName lambda
     where
         tableName = extractIdent (args!!0)
         columnName = extractColumn (args!!1)
         lambda = extractLambda (args!!2)
-operstat OperationSplit args env = doOperationSplit tableName columnNames newTableName
+operstat OperationSplit args env = doOperationSplit env tableName columnNames newTableName
     where
         tableName = extractIdent (args!!0)
         columnNames = extractStringList (args!!1)
         newTableName = extractString (args!!2)
 operstat OperationDecouple args env = undefined
 operstat OperationNormalize args env = undefined
-operstat OperationRename args env = doOperationRename tableName columnNames newTableName
+operstat OperationRename args env = doOperationRename env tableName columnNames newTableName
     where
         tableName = extractIdent (args!!0)
         columnNames = extractStringList (args!!1)
         newTableName = extractString (args!!2)
 
-doOperationAdd :: Expression -> Column -> Lambda -> (Code, Environment)
+doOperationAdd :: Environment -> Ident -> Column -> Lambda -> (Code, Environment)
 doOperationAdd = undefined
 
-doOperationSplit :: Expression -> [String] -> String -> (Code, Environment)
-doOperationSplit = undefined
-
-doOperationDecouple :: Expression -> [String] -> (Code, Environment)
+doOperationDecouple :: Environment -> Ident -> [String] -> (Code, Environment)
 doOperationDecouple = undefined
 
-doOperationNormalize :: Expression -> String -> [String] -> (Code, Environment)
+doOperationNormalize :: Environment -> Ident -> String -> [String] -> (Code, Environment)
 doOperationNormalize = undefined
 
-doOperationRename :: Expression -> String -> (Code, Environment)
-doOperationRename = undefined
+doOperationSplit :: Environment -> Ident -> [String] -> String -> (Code, Environment)
+doOperationSplit env (Ident i) ss s
+    = (Code { upgrade=[
+        "CREATE TABLE " ++ s ++ " ( "
+        ++ nameICol getPK ++ " " ++ typeICol getPK ++ " PRIMARY KEY NOT NULL,"
+        ++ map (\(colString, colType) -> concat [colString, " ", colType, ","]) fetched
+        ++ ");",
+        "INSERT INTO " ++ s ++ " ( "
+        ++ "SELECT  " ++ nameICol getPK ++ ", " ++ concat (intersperse ", " (map fst fetched))
+        ++ "FROM " ++ i
+        ++ ");",
+        "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ concat (intersperse ", DROP COLUMN " (map fst fetched)) ++ ";"
+        ], downgrade=[
+        ] }, env)
+    where getPK :: Map String IColumn -> IColumn
+          getPK = snd $ head $ filter ((k,v) -> Primary `elem` colmodICol v) (M.toList $ tableEnv env)
+          fetched = map (\colString -> (colString, typeICol (fetchColumn colString))) ss
+          oldTableEnv = tableEnv env
+          fetchColumn c = case M.lookup c oldTableEnv of
+            Just icol -> icol
+            Nothing -> error "Splitting on nonexisting column."
+
+doOperationRename :: Environment -> Ident -> String -> (Code, Environment)
+doOperationRename env (Ident i) s
+    = (Code { upgrade=["ALTER TABLE " ++ i ++ " RENAME TO " ++ s],
+        downgrade=["ALTER TABLE " ++ s ++ " RENAME TO " ++ i] }, newEnv)
+    where
+        oldTable = M.lookup i (tableEnv env)
+        removedTable = M.delete i (tableEnv env)
+        newEnv = case oldTable of
+            Just o -> (varEnv, M.insert s o removedTable)
+            Nothing -> error "The given table does not exist."
 
 extractIdent :: Argument -> Ident
 extractIdent (ArgExpression i@(Ident s)) = i
