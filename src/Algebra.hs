@@ -46,7 +46,7 @@ foldHasql ::
      HasqlAlgebra hasql init up table column colmod typ statement expression operation argument lambda operator
   -> Hasql
   -> hasql
-foldHasql (fHasql, fInit, fTable, fCol, fColmod, fTyp, fUp, (fStatDecl, fStatAss, fStatOper), fOperation, (fArgExpr, fArgLam, fArgCol, fArgLis), fLambda, (fExprOper, fExprCond, fExprString, fExprBool, fExprInt, fExprIdent), fExprOper) =
+foldHasql (fHasql, fInit, fTable, fCol, fColmod, fTyp, fUp, (fStatDecl, fStatAss, fStatOper), fOperation, (fArgExpr, fArgLam, fArgCol, fArgLis), fLambda, (fExprOper, fExprCond, fExprString, fExprBool, fExprInt, fExprIdent), fOper) =
   fHasql'
   where
     fHasql' (Hasql i u) = fHasql (fInit' i) (fUp' u)
@@ -65,7 +65,7 @@ foldHasql (fHasql, fInit, fTable, fCol, fColmod, fTyp, fUp, (fStatDecl, fStatAss
     fArgument' (ArgStringList ss) = fArgLis ss
     fLambda' (Lambda e) = fLambda (fExpression' e)
     fExpression' (Expr e1 op e2) =
-      fExprOper (fExpression' e1) (fExprOper op) (fExpression' e2)
+      fExprOper (fExpression' e1) (fOper op) (fExpression' e2)
     fExpression' (Conditional e1 e2 e3) =
       fExprCond (fExpression' e1) (fExpression' e2) (fExpression' e3)
     fExpression' (ConstString x) = fExprString x
