@@ -1,11 +1,12 @@
 module Static where
 
+import Data.List (nub)
 import qualified Data.Map.Strict as M
 
 import Algebra
 import Syntax
 
-type TableEnv = M.Map String (M.Map String Type)
+type TableEnv = M.Map String (M.Map String (Type, [ColumnModifier]))
 
 type VarEnv = M.Map String Type
 
@@ -22,13 +23,15 @@ check = foldHasql checkAlgebra
   where
     checkAlgebra ::
          HasqlAlgebra TypeEnvironment TableEnv (TableEnv -> TypeEnvironment) ( String
-                                                                             , M.Map String Type) ( String
-                                                                                                  , Type) ColumnModifier Type (Statement -> TableEnv -> VarEnv) TExpression Operation Argument Lambda Operator
+                                                                             , M.Map String ( Type
+                                                                                            , [ColumnModifier])) ( String
+                                                                                                                 , Type
+                                                                                                                 , [ColumnModifier]) ColumnModifier Type (Statement -> TableEnv -> VarEnv) TExpression Operation Argument Lambda Operator
     checkAlgebra =
-      ( hasql1
-      , init1
-      , table1
-      , col1
+      ( hasql
+      , init
+      , table
+      , col
       , colmod1
       , typ1
       , up1
@@ -38,10 +41,13 @@ check = foldHasql checkAlgebra
       , lambda1
       , (operexpr, condexpr, string1, bool1, int1, ident1)
       , operator1)
-    init1 = foldr (\(k, t) prev -> M.insert k t prev) M.empty
-    table1 s = foldr (\(k, t) prev -> M.insert k t prev) M.empty
-    col1 (Column s t cms)
-      | length cms == length unique cms = (s, t)
+    hasql tableEnv typeCheck = typeCheck tableEnv
+    init tables = foldr (\(k, t) prev -> M.insert k t prev) M.empty tables
+    table name columns =
+      (name, foldr (\(n, t, m) prev -> M.insert n (t, m) prev) M.empty columns)
+    col name columnType modifiers
+      | length modifiers == length (nub modifiers) =
+        (name, columnType, modifiers)
       | otherwise = error "Duplicate column modifiers detected"
     colmod1 = id
     typ1 = id
