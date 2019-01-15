@@ -13,7 +13,7 @@ type HasqlAlgebra hasql init up table column colmod typ statement expression ope
      , String -> typ -> [colmod] -> column
         -- | ColumnModifier
      , ColumnModifier -> colmod
-        -- | ype
+        -- | Type
      , Type -> typ
         -- | Up
      , [statement] -> up
