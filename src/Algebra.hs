@@ -46,29 +46,30 @@ foldHasql ::
      HasqlAlgebra hasql init up table column colmod typ statement expression operation argument lambda operator
   -> Hasql
   -> hasql
-foldHasql (hasql1, init1, table1, col1, colmod1, typ1, up1, (declstat, assstat, operstat), operation1, (exprarg, lamarg, colarg, lsarg), lambda1, (operexpr, condexpr, string1, bool1, int1, ident1), operator1) =
+foldHasql (fHasql, fInit, fTable, fCol, fColmod, fTyp, fUp, (fStatDecl, fStatAss, fStatOper), fOperation, (fArgExpr, fArgLam, fArgCol, fArgLis), fLambda, (fExprOper, fExprCond, fExprString, fExprBool, fExprInt, fExprIdent), fExprOper) =
   fHasql'
   where
-    fHasql' (Hasql i u) = hasql1 (fInit i) (fUp u)
-    fInit (Init ts) = init1 (map fTable ts)
-    fTable (Table s cs) = table1 s (map fColumn cs)
-    fColumn (Column s t cms) = col1 s (fType t) (map colmod1 cms)
-    fType = typ1
-    fUp (Up ss) = up1 (map fStatement ss)
-    fStatement (Declaration s t e) = declstat s t (fExpression e)
-    fStatement (Assignment s e) = assstat s (fExpression e)
-    fStatement (FunctionCall o as) = operstat (operation1 o) (map fArgument as)
-    fArgument (ArgExpression e) = exprarg (fExpression e)
-    fArgument (ArgLambda l) = lamarg (fLambda l)
-    fArgument (ArgColumn c) = colarg (fColumn c)
-    fArgument (ArgStringList ss) = lsarg ss
-    fLambda (Lambda e) = lambda1 (fExpression e)
-    fExpression (Expr e1 op e2) =
-      operexpr (fExpression e1) (operator1 op) (fExpression e2)
-    fExpression (Conditional e1 e2 e3) =
-      condexpr (fExpression e1) (fExpression e2) (fExpression e3)
-    fExpression (ConstString x) = string1 x
-    fExpression (ConstBool x) = bool1 x
-    fExpression (ConstInt x) = int1 x
-    fExpression (Ident x) = ident1 x
+    fHasql' (Hasql i u) = fHasql (fInit' i) (fUp' u)
+    fInit' (Init ts) = fInit (map fTable' ts)
+    fTable' (Table s cs) = fTable s (map fColumn' cs)
+    fColumn' (Column s t cms) = fCol s (fType' t) (map fColmod cms)
+    fType' = fTyp
+    fUp' (Up ss) = fUp (map fStatement' ss)
+    fStatement' (Declaration s t e) = fStatDecl s t (fExpression' e)
+    fStatement' (Assignment s e) = fStatAss s (fExpression' e)
+    fStatement' (FunctionCall o as) =
+      fStatOper (fOperation o) (map fArgument' as)
+    fArgument' (ArgExpression e) = fArgExpr (fExpression' e)
+    fArgument' (ArgLambda l) = fArgLam (fLambda' l)
+    fArgument' (ArgColumn c) = fArgCol (fColumn' c)
+    fArgument' (ArgStringList ss) = fArgLis ss
+    fLambda' (Lambda e) = fLambda (fExpression' e)
+    fExpression' (Expr e1 op e2) =
+      fExprOper (fExpression' e1) (fExprOper op) (fExpression' e2)
+    fExpression' (Conditional e1 e2 e3) =
+      fExprCond (fExpression' e1) (fExpression' e2) (fExpression' e3)
+    fExpression' (ConstString x) = fExprString x
+    fExpression' (ConstBool x) = fExprBool x
+    fExpression' (ConstInt x) = fExprInt x
+    fExpression' (Ident x) = fExprIdent x
     -- TODO: Add a case for the @Undefined@ expression. Or Not. I Don't care.
