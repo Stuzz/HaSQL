@@ -17,7 +17,7 @@ data TypeEnvironment = TypeEnvironment
 type TExpression = TypeEnvironment -> (Expression, Type)
 
 check :: Hasql -> TypeEnvironment
-check h = foldHasql checkAlgebra h
+check = foldHasql checkAlgebra
     -- TODO: The last four types are not properly defined yet
   where
     checkAlgebra ::
@@ -38,11 +38,10 @@ check h = foldHasql checkAlgebra h
       , lambda1
       , (operexpr, condexpr, string1, bool1, int1, ident1)
       , operator1)
-    init1 ts = foldr (\(k, t) prev -> M.insert k t prev) M.empty ts
-    table1 s cs = foldr (\(k, t) prev -> M.insert k t prev) M.empty cs
+    init1 = foldr (\(k, t) prev -> M.insert k t prev) M.empty
+    table1 s = foldr (\(k, t) prev -> M.insert k t prev) M.empty
     col1 (Column s t cms)
       | length cms == length unique cms = (s, t)
-    col1 (Column s t cms)
       | otherwise = error "Duplicate column modifiers detected"
     colmod1 = id
     typ1 = id
@@ -51,10 +50,10 @@ check h = foldHasql checkAlgebra h
         (c, TypeBool) -> do
           let (tr, ttype) = true env
           let (fa, ftype) = false env
-          case (ftype == ttype) of
+          case ftype == ttype of
             True -> (Conditional c tr fa, ttype)
             False -> error "The conditional branches did not have the same type"
-        otherwise -> error "Conditional was not a boolean"
+            _ -> error "Conditional was not a boolean"
     string1 e env = (e, TypeString)
     bool1 e env = (e, TypeBool)
     int1 e env = (e, TypeInt)

@@ -53,7 +53,7 @@ foldHasql (hasql1, init1, table1, col1, colmod1, typ1, up1, (declstat, assstat, 
     fInit (Init ts) = init1 (map fTable ts)
     fTable (Table s cs) = table1 s (map fColumn cs)
     fColumn (Column s t cms) = col1 s (fType t) (map colmod1 cms)
-    fType t = typ1 t
+    fType = typ1
     fUp (Up ss) = up1 (map fStatement ss)
     fStatement (Declaration s t e) = declstat s t (fExpression e)
     fStatement (Assignment s e) = assstat s (fExpression e)
