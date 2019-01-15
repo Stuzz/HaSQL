@@ -2,9 +2,11 @@ module Static where
 
 import Data.List (nub)
 import qualified Data.Map.Strict as M
+import Data.Maybe
 
 import Algebra
 import Syntax
+import Dynamic
 
 type TableEnv = M.Map String (M.Map String (Type, [ColumnModifier]))
 
@@ -19,7 +21,7 @@ type TExpression = TypeEnvironment -> (Expression, Type)
 
 type TArgument = TypeEnvironment -> (Argument, Type)
 type TLambda = TExpression -> (Lambda, Type)
-type TOperation = [TArgument] -> (Operation, Type)
+type TStatement = TypeEnvironment -> (Statement, TypeEnvironment)
 
 check :: Hasql -> TypeEnvironment
 check = foldHasql checkAlgebra
@@ -140,19 +142,42 @@ check = foldHasql checkAlgebra
     lsarg :: ArgStringList :: TArgument
     lsarg asl env = ArgStringList als
 
-    --operation1 :: String -> [TArgument] -> TOperation 
-    --operation1 args (tenv, venv) = 
+    operation1 :: Operation -> Operation
+    operation1 = id
 
-    --add column
-    -- operation1 table (argColumn : []) (tenv, venv) =
-    --     case M.lookup table tenv of
-    --         (Just table_env) -> do
-    --         let (Column n t1 mds, t2) = argColumn env
-    --         case (M.lookup table_env) of
-    --             Noting -> (OperationAdd
-    --             Just t -> error ("Column "++n++" does already exist in Table "++table)
-    --         otherwise -> error ("Table "++table++" does not exist") 
-    --     case M.lookup table tenv of
-    --         Just t -> (e, t)
-    --         Nothing -> error ("Variable " ++ s ++ " not defined")
-    --     where (Column n t1 mds, t2) = argColumn env
+    operstat :: Operation -> [TArgument] -> TStatement
+    --add column (NOT TESTED)
+    operstat op [a1 , a2] env = do
+            let (tenv, venv) = env
+            let tableIdent = extractIdent (a1 env)
+            let column = extractColumn (a2 env)
+            
+            case M.lookup tableIdent tenv of
+                (Just table_env) -> do
+                    let (Column n t1 mds, t2) = column
+                    case (M.lookup table_env) of
+                        Nothing -> let newTenv = M.insert n (t1, mds) table_env in (FunctionCall op [tableIdent, column], newTenv)
+                        Just t -> error ("Column "++n++" does already exist in Table "++table)
+                Nothing -> error ("Table "++table++" does not exist") 
+    --split table
+    -- operstat op [a1, a2, a3] env = do
+    --         let (tenv, venv) = env
+    --         let tableIdent = extractIdent (a1 env)
+    --         let newtablename = extractString (a2 env)
+    --         let stringlist = extractStringList (a3 env)
+            
+    --         case M.lookup tableIdent tenv of
+    --             (Just table_env) -> do
+    --                 case (M.lookup newtablename tenv) of
+    --                     Nothing -> do
+    --                         let columnsExist = all (map (\name -> isJust(M.lookup name table_env)) stringlist)
+    --                         map (\column -> moveColumn tenv tableIdent newtablename column) stringlist
+                            
+    --                     Just t -> error ("Table "++newtablename++" does already exist")
+    --             Nothing -> error ("Table "++table++" does not exist") 
+
+    --         where moveColumn tenv tfrom tto col = 
+    --             let column = M.lookup col (M.lookup newTenv tfrom)
+    --             let newTenv = M.insert col (M.lookup tenv tto) in M.delete col (M.lookup newTenv tfrom)
+                
+                
