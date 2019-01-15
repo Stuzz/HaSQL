@@ -18,7 +18,9 @@ data TypeEnvironment = TypeEnvironment
 type TExpression = TypeEnvironment -> (Expression, Type)
 
 type TArgument = TypeEnvironment -> (Argument, Type)
+
 type TLambda = TExpression -> (Lambda, Type)
+
 type TOperation = [TArgument] -> (Operation, Type)
 
 check :: Hasql -> TypeEnvironment
@@ -43,7 +45,7 @@ check = foldHasql checkAlgebra
       , operation1
       , (exprarg, lamarg, colarg, lsarg)
       , lambda1
-      , (operexpr, condexpr, string1, bool1, int1, ident1)
+      , (fExprOper, condexpr, string1, bool1, int1, ident1)
       , operator1)
     fHasql tableEnv typeCheck = typeCheck tableEnv
     fInit tables = foldr (\(k, t) prev -> M.insert k t prev) M.empty tables
@@ -76,55 +78,48 @@ check = foldHasql checkAlgebra
       case M.lookup s venv of
         Just t -> (e, t)
         Nothing -> error ("Variable " ++ s ++ " not defined")
-    operexpr expression1 op expression2 env
-      | op == OperAdd =
-        if e1type == e2type && (e1type == TypeInt)
-          then expression1 OperAdd expression2
-          else error "Arguments of addition where not both integers"
-      | op == OperSubtract =
-        if e1type == e2type && (e1type == TypeInt)
-          then expression1 OperSubtract expression2
-          else error "Arguments of addition where not both integers"
-      | op == OperMultiply =
-        if e1type == e2type && (e1type == TypeInt)
-          then expression1 OperMultiply expression2
-          else error "Arguments of addition where not both integers"
-      | op == OperDivide =
-        if e1type == e2type && (e1type == TypeInt)
-          then expression1 OperDivide expression2
-          else error "Arguments of addition where not both integers"
-      | op == OperConcatenate =
-        if e1type == e2type && (e1type == TypeString)
-          then expression1 OperConcatenate expression2
-          else error "Arguments of addition where not both strings"
-      | op == OperEquals =
-        if e1type == e2type
-          then expression1 OperEquals expression2
-          else error "Arguments of addition where not both booleans"
-      | op == OperNotEquals =
-        if e1type == e2type
-          then expression1 OperNotEquals expression2
-          else error "Arguments of addition where not both booleans"
-      | op == OperLesserThan =
-        if e1type == e2type && (e1type == TypeInt)
-          then expression1 OperLesserThan expression2
-          else error "Arguments of addition where not both integers"
-      | op == OperLesserEquals =
-        if e1type == e2type && (e1type == TypeInt)
-          then expression1 OperLesserEquals expression2
-          else error "Arguments of addition where not both integers"
-      | op == OperGreaterThan =
-        if e1type == e2type && (e1type == TypeInt)
-          then expression1 OperGreaterThan expression2
-          else error "Arguments of addition where not both integers"
-      | op == OperGreaterEquals =
-        if e1type == e2type && (e1type == TypeInt)
-          then expression1 OperGreaterEquals expression2
-          else error "Arguments of addition where not both integers"
+    fExprOper expression1 operator expression2 env =
+      case (operator, exprType) of
+        (OperAdd, Just TypeInt) -> expression1 OperAdd expression2
+        (OperAdd, _) -> error "Arguments of addition were not both integers"
+        (OperSubtract, Just TypeInt) -> expression1 OperSubtract expression2
+        (OperSubtract, _) ->
+          error "Arguments of subtraction were not both integers"
+        (OperMultiply, Just TypeInt) -> expression1 OperMultiply expression2
+        (OperMultiply, _) ->
+          error "Arguments of multiplication were not both integers"
+        (OperDivide, Just TypeInt) -> expression1 OperDivide expression2
+        (OperDivide, _) -> error "Arguments of division were not both integers"
+        (OperConcatenate, Just TypeString) ->
+          expression1 OperConcatenate expression2
+          -- XXX: This should not be a probem though!
+        (OperConcatenate, _) ->
+          error "Arguments of concatenation were not both strings"
+        (OperEquals, Just TypeBool) -> expression1 OperEquals expression2
+        (OperEquals, _) -> error "Arguments of (==) were not both booleans"
+        (OperNotEquals, Just TypeBool) -> expression1 OperNotEquals expression2
+        (OperNotEquals, _) -> error "Arguments of (!=) were not both booleans"
+        (OperLesserThan, Just TypeBool) ->
+          expression1 OperLesserThan expression2
+        (OperLesserThan, _) -> error "Arguments of (<) were not both booleans"
+        (OperLesserEquals, Just TypeBool) ->
+          expression1 OperLesserEquals expression2
+        (OperLesserEquals, _) ->
+          error "Arguments of (<=) were not both booleans"
+        (OperGreaterThan, Just TypeBool) ->
+          expression1 OperGreaterThan expression2
+        (OperGreaterThan, _) -> error "Arguments of (>) were not both booleans"
+        (OperGreaterEquals, Just TypeBool) ->
+          expression1 OperGreaterEquals expression2
+        (OperGreaterEquals, _) ->
+          error "Arguments of (>=) were not both booleans"
       where
         (e1, e1type) = expression1 env
         (e2, e2type) = expression2 env
-
+        exprType =
+          if e1type == e2type
+            then Just e1type
+            else Nothing
     operator1 :: Operator -> Operator
     operator1 = id
 
