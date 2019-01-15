@@ -19,22 +19,22 @@ type TExpression = TypeEnvironment -> (Expression, Type)
 
 check :: Hasql -> TypeEnvironment
 check = foldHasql checkAlgebra
-    -- TODO: The last four types are not properly defined yet
+    -- TODO: The last four types are not properly defined yet, maybe
   where
     checkAlgebra ::
          HasqlAlgebra TypeEnvironment TableEnv (TableEnv -> TypeEnvironment) ( String
                                                                              , M.Map String ( Type
                                                                                             , [ColumnModifier])) ( String
                                                                                                                  , Type
-                                                                                                                 , [ColumnModifier]) ColumnModifier Type (Statement -> TableEnv -> VarEnv) TExpression Operation Argument Lambda Operator
+                                                                                                                 , [ColumnModifier]) ColumnModifier Type (TableEnv -> VarEnv) TExpression Operation Argument Lambda Operator
     checkAlgebra =
       ( hasql
       , init
       , table
       , col
-      , colmod1
-      , typ1
-      , up1
+      , colmod
+      , typ
+      , up
       , (declstat, assstat, operstat)
       , operation1
       , (exprarg, lamarg, colarg, lsarg)
@@ -49,8 +49,13 @@ check = foldHasql checkAlgebra
       | length modifiers == length (nub modifiers) =
         (name, columnType, modifiers)
       | otherwise = error "Duplicate column modifiers detected"
-    colmod1 = id
-    typ1 = id
+    colmod = id
+    typ = id
+    up statementFunctions tableEnv =
+      TypeEnvironment
+        { table = tableEnv
+        , var = M.unions $ map (\f -> f tableEnv) statementFunctions
+        }
     condexpr condition true false env =
       case condition env of
         (c, TypeBool) -> do
