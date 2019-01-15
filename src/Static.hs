@@ -31,7 +31,7 @@ check h = foldHasql checkAlgebra h
         init1 ts = foldr (\(k, t) prev -> M.insert k t prev) M.empty ts
         table1 :: String -> [(String, Type)] -> (String, M.Map String Type)
         table1 s cs  = foldr (\(k, t) prev -> M.insert k t prev) M.empty cs
-        col1 :: Column -> (String, Type)
+        col1 :: Column -> (String,B Type)
         col1 (Column s t cms) | length cms == length unique cms = (s, t)
         col1 (Column s t cms) | otherwise = error "Duplicate column modifiers detected"
         colmod1 = id
