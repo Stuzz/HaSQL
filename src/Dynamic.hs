@@ -90,6 +90,62 @@ assstat s c env
             = Just $ IVar { nameIVar n, typeIVar t, valueIVar c }
 
 operstat :: Operation -> [Argument] -> Migration
+operstat OperationAdd args env = doOperationAdd tableName columnName lambda
+    where
+        tableName = extractIdent (args!!0)
+        columnName = extractColumn (args!!1)
+        lambda = extractLambda (args!!2)
+operstat OperationSplit args env = doOperationSplit tableName columnNames newTableName
+    where
+        tableName = extractIdent (args!!0)
+        columnNames = extractStringList (args!!1)
+        newTableName = extractString (args!!2)
+operstat OperationDecouple args env = undefined
+operstat OperationNormalize args env = undefined
+operstat OperationRename args env = doOperationRename tableName columnNames newTableName
+    where
+        tableName = extractIdent (args!!0)
+        columnNames = extractStringList (args!!1)
+        newTableName = extractString (args!!2)
+
+doOperationAdd :: Expression -> Column -> Lambda -> (Code, Environment)
+doOperationAdd = undefined
+
+doOperationSplit :: Expression -> [String] -> String -> (Code, Environment)
+doOperationSplit = undefined
+
+doOperationDecouple :: Expression -> [String] -> (Code, Environment)
+doOperationDecouple = undefined
+
+doOperationNormalize :: Expression -> String -> [String] -> (Code, Environment)
+doOperationNormalize = undefined
+
+doOperationRename :: Expression -> String -> (Code, Environment)
+doOperationRename = undefined
+
+extractIdent :: Argument -> Ident
+extractIdent (ArgExpression i@(Ident s)) = i
+extractIdent a = error "Ident expected, " ++ show a ++ " given."
+
+extractString :: Argument -> String
+extractString (ArgExpression (ConstString s)) = s
+extractString a = error "ConstString expected, " ++ show a ++ " given."
+
+extractIdents :: Argument -> [String]
+extractIdents (ArgStringList ss) = ss
+extractIdents a = error "[String] expected, " ++ show a ++ " given."
+
+extractLambda :: Argument -> Lambda
+extractLambda (ArgLambda l) = l
+extractLambda a = error "Lambda expected, " ++ show a ++ " given."
+
+extractColumn :: Argument -> Column
+extractColumn (ArgColumn c) = c
+extractColumn a = error "Column expected, " ++ show a ++ " given."
+
+extractStringList :: Argument -> [String]
+extractStringList (ArgStringList ss) = ss
+extractStringList a = error "[String] expected, " ++ show a ++ " given."
 
 codeConcat :: Code -> Code -> Code
 codeConcat c1 c2 = Code { upgrade c1 ++ upgrade c2, downgrade c1 ++ downgrade c2 }
