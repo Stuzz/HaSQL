@@ -28,30 +28,30 @@ check = foldHasql checkAlgebra
                                                                                                                  , Type
                                                                                                                  , [ColumnModifier]) ColumnModifier Type (TableEnv -> VarEnv) TExpression Operation Argument Lambda Operator
     checkAlgebra =
-      ( hasql
-      , init
-      , table
-      , col
-      , colmod
-      , typ
-      , up
+      ( fHasql
+      , fInit
+      , fTable
+      , fCol
+      , fColmod
+      , fType
+      , fUp
       , (declstat, assstat, operstat)
       , operation1
       , (exprarg, lamarg, colarg, lsarg)
       , lambda1
       , (operexpr, condexpr, string1, bool1, int1, ident1)
       , operator1)
-    hasql tableEnv typeCheck = typeCheck tableEnv
-    init tables = foldr (\(k, t) prev -> M.insert k t prev) M.empty tables
-    table name columns =
+    fHasql tableEnv typeCheck = typeCheck tableEnv
+    fInit tables = foldr (\(k, t) prev -> M.insert k t prev) M.empty tables
+    fTable name columns =
       (name, foldr (\(n, t, m) prev -> M.insert n (t, m) prev) M.empty columns)
-    col name columnType modifiers
+    fCol name columnType modifiers
       | length modifiers == length (nub modifiers) =
         (name, columnType, modifiers)
       | otherwise = error "Duplicate column modifiers detected"
-    colmod = id
-    typ = id
-    up statementFunctions tableEnv =
+    fColmod = id
+    fType = id
+    fUp statementFunctions tableEnv =
       TypeEnvironment
         { table = tableEnv
         , var = M.unions $ map (\f -> f tableEnv) statementFunctions
