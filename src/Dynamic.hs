@@ -39,7 +39,7 @@ data Code = Code {
 type Migration = Environment -> (Code, Environment)
 
 generate :: Hasql -> [String]
-generate h = foldHasql generateAlgebra h
+generate = foldHasql generateAlgebra
     where
         generateAlgebra =
             (hasql1, init1, table1,
@@ -88,7 +88,7 @@ assstat :: String -> Constant -> Migration
 assstat s c env
     = (Code {upgrade = [], downgrade = []}, Environment { var = M.update updateValue s (var env), table = table env })
     where
-        updateValue (IVar { nameIVar = n, typeIVar = t })
+        updateValue IVar { nameIVar = n, typeIVar = t }
             = Just $ IVar { nameIVar = n, typeIVar = t, valIVar = c }
 
 operstat :: Operation -> [Argument] -> Migration
@@ -113,8 +113,34 @@ operstat OperationRename args env = doOperationRename env tableName newTableName
 doOperationAdd :: Environment -> Expression -> Column -> Lambda -> (Code, Environment)
 doOperationAdd = undefined
 
+getPK :: Environment -> String -> IColumn
+getPK env i = snd $ head $ filter (\(k,v) -> Primary `elem` colmodICol v) (M.toList (oldTableEnv env i))
+
+fetched :: Environment -> String -> [(String, Type)]
+fetched env i = map (\colString -> (colString, typeICol (fetchColumn colString))) ss
+    where 
+        fetchColumn :: String -> IColumn
+        fetchColumn c = fromMaybe (error "Splitting on nonexisting column.") (M.lookup c (oldTableEnv env i))
+
+oldTableEnv :: Environment -> String -> M.Map String IColumn
+oldTableEnv env i =  fromJust $ M.lookup i $ table env
+
 doOperationDecouple :: Environment -> Expression -> [String] -> (Code, Environment)
-doOperationDecouple = undefined
+doOperationDecouple env (Ident i) ss 
+    = Code 
+        { upgrade=[
+            "CREATE TABLE " ++ decoupledName ++ " ( "
+            ++ 
+            "ALTER TABLE " ++ i ++ " "
+            ++ " "
+        ]} 
+        where
+            columnPK :: IColumn
+            columnPK = getPK env i
+            decoupledName = i ++ "_decoupled" ++ show (count 0)
+            count x = case M.lookup (i ++ "_decoupled"  ++ show x) env of 
+                        Just _ -> count x + 1
+                        Nothing -> x
 
 doOperationNormalize :: Environment -> Expression -> String -> [String] -> (Code, Environment)
 doOperationNormalize = undefined
@@ -124,11 +150,11 @@ doOperationSplit env (Ident i) ss s
     = (Code
         { upgrade=[
             "CREATE TABLE " ++ s ++ " ( "
-            ++ nameICol getPK ++ " " ++ show (typeICol getPK) ++ " PRIMARY KEY NOT NULL,"
+            ++ nameICol columnPK ++ " " ++ show (typeICol columnPK) ++ " PRIMARY KEY NOT NULL,"
             ++ concatMap (\(colString, colType) -> concat [colString, " ", show colType, ","]) fetched
             ++ ");",
             "INSERT INTO " ++ s ++ " ( "
-            ++ "SELECT  " ++ nameICol getPK ++ ", " ++ nameInsert ", "
+            ++ "SELECT  " ++ nameICol columnPK ++ ", " ++ nameInsert ", "
             ++ "FROM " ++ i
             ++ ");",
             "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ nameInsert ", DROP COLUMN "  ++ ";"
@@ -139,20 +165,16 @@ doOperationSplit env (Ident i) ss s
             "INSERT INTO " ++ i ++ " ( " ++ nameInsert ", " ++ " )" ++ " ( "
             ++ "SELECT " ++ nameInsert ", "
             ++ "FROM " ++ s
-            ++ "WHERE " ++ i ++ "." ++ nameICol getPK ++ " == " ++ s ++ "." ++ nameICol getPK
+            ++ "WHERE " ++ i ++ "." ++ nameICol columnPK ++ " == " ++ s ++ "." ++ nameICol columnPK
             ++ ");",
             "DROP TABLE " ++ s ++ ";"
          ]}, env)
-    where getPK :: IColumn
-          getPK = snd $ head $ filter (\(k,v) ->  Primary `elem` colmodICol v) (M.toList oldTableEnv)
-          fetched :: [(String, Type)]
-          fetched = map (\colString -> (colString, typeICol (fetchColumn colString))) ss
-          oldTableEnv :: M.Map String IColumn
-          oldTableEnv = fromJust $ M.lookup i $ table env
+    where
+          columnPK :: IColumn
+          columnPK = getPK env i
           nameInsert :: String -> String
           nameInsert x = intercalate x (map fst fetched)
-          fetchColumn :: String -> IColumn
-          fetchColumn c = fromMaybe (error "Splitting on nonexisting column.") (M.lookup c oldTableEnv)
+          
 
 doOperationRename :: Environment -> Expression -> String -> (Code, Environment)
 doOperationRename env (Ident i) s
@@ -163,7 +185,7 @@ doOperationRename env (Ident i) s
         removedTable = M.delete i (table env)
         newEnv = case oldTable of
             Just o -> Environment {var = var env, table = M.insert s o removedTable}
-            Nothing -> error ("The given table does not exist.")
+            Nothing -> error "The given table does not exist."
 
 extractIdent :: Argument -> Expression
 extractIdent (ArgExpression i@(Ident s)) = i
