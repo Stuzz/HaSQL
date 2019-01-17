@@ -36,7 +36,7 @@ example = Hasql init up
         [ FunctionCall
             OperationSplit
             [ ArgExpression (ConstString "Users")
-            , ArgStringList ["FirstName"]
             , ArgExpression (ConstString "Names")
+            , ArgStringList ["BigBoi"]
             ]
         ]
