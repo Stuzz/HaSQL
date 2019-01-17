@@ -164,7 +164,7 @@ check = foldHasql checkAlgebra
     --add column (NOT TESTED)
     operstat OperationAdd [a1, a2] env = do
       let TypeEnvironment {table = tenv, var = venv} = env
-      let (Ident tableIdent) = extractIdent (fst (a1 env))
+      let tableIdent = extractString (fst (a1 env))
       let (Column n t1 mds) = extractColumn (fst (a2 env))
       case M.lookup tableIdent tenv of
         (Just table_env) ->
@@ -182,7 +182,7 @@ check = foldHasql checkAlgebra
     --split table
     operstat OperationSplit [a1, a2, a3] env = do
       let TypeEnvironment {table = tenv, var = venv} = env
-      let (Ident tableIdent) = extractIdent (fst (a1 env))
+      let tableIdent = extractString (fst (a1 env))
       let newtablename = extractString (fst (a2 env))
       let stringlist = extractStringList (fst (a3 env))
       case M.lookup tableIdent tenv of
@@ -203,7 +203,7 @@ check = foldHasql checkAlgebra
     -- Rename table
     operstat OperationRename [a1, a2] env = do
       let TypeEnvironment {table = tenv, var = venv} = env
-      let Ident tableIdent = extractIdent (fst (a1 env))
+      let tableIdent = extractString (fst (a1 env))
       let newName = extractString (fst (a2 env))
       case M.lookup tableIdent tenv of
         Just curtable ->
