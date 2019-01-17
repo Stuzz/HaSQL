@@ -2,6 +2,8 @@ module Lib
   ( parseSql
   ) where
 
+import Debug.Trace
+
 import Algebra
 import qualified Dynamic
 import Lexer
@@ -14,10 +16,13 @@ import Syntax
 -- TODO: This should of course return SQL files for both the up and the down
 --       migration.
 parseSql :: String -> Dynamic.Code
-parseSql = compile . parse . scan
+parseSql = const (compile example)
 
+-- XXX: Dangerous, don't touch, might explode
 compile :: Hasql -> Dynamic.Code
-compile hasql = const (Dynamic.generate hasql) $! Static.check hasql
+compile hasql =
+  let bigChungus = traceShowId $ Static.check hasql
+   in const (Dynamic.generate hasql) $! bigChungus
 
 example :: Hasql
 example = Hasql init up
