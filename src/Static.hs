@@ -16,7 +16,7 @@ type VarEnv = M.Map String Type
 data TypeEnvironment = TypeEnvironment
   { table :: TableEnv
   , var :: VarEnv
-  }
+  } deriving (Show)
 
 type TUp = (TableEnv -> TypeEnvironment)
 
