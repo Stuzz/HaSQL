@@ -128,18 +128,18 @@ doOperationSplit env (Ident i) ss s
             ++ map (\(colString, colType) -> concat [colString, " ", colType, ","]) fetched
             ++ ");",
             "INSERT INTO " ++ s ++ " ( "
-            ++ "SELECT  " ++ nameICol getPK ++ ", " ++ concat (intersperse ", " (map fst fetched))
+            ++ "SELECT  " ++ nameICol getPK ++ ", " ++ nameInsert ", "
             ++ "FROM " ++ i
             ++ ");",
-            "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ concat (intersperse ", DROP COLUMN " (map fst fetched)) ++ ";"
+            "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ nameInsert ", DROP COLUMN "  ++ ";"
         ], 
          downgrade=[
             "ALTER TABLE " ++ i 
-            ++ "ADD COLUMN " ++ concat (intersperse ", ADD COLUMN " (map fst fetched)) ++ ";",
-            "INSERT INTO " ++ i ++ " ( " ++ concat (intersperse ", " (map fst fetched)) ++ " )" ++ " ( "
-            ++ "SELECT " ++ concat (intersperse ", " (map fst fetched)
+            ++ "ADD COLUMN " ++ nameInsert ", ADD COLUMN " ++ ";",
+            "INSERT INTO " ++ i ++ " ( " ++ nameInsert ", " ++ " )" ++ " ( "
+            ++ "SELECT " ++ nameInsert ", "
             ++ "FROM " ++ s
-            ++ "WHERE " ++ i ++ "." ++ getPK ++ " == " ++ s ++ "." ++ getPK
+            ++ "WHERE " ++ i ++ "." ++ nameICol getPK ++ " == " ++ s ++ "." ++ nameICol getPK
             ++ ");",
             "DROP TABLE " ++ s ++ ";"
          ]}, env)
@@ -147,6 +147,7 @@ doOperationSplit env (Ident i) ss s
           getPK = snd $ head $ filter (\(k,v) ->  elem Primary (colmodICol v)) (M.toList oldTableEnv)
           fetched = map (\colString -> (colString, typeICol (fetchColumn colString))) ss
           oldTableEnv = fromJust $ M.lookup i $ table env
+          nameInsert x = concat (intersperse x (map fst fetched))
           fetchColumn c = case M.lookup c oldTableEnv of
             Just icol -> icol
             Nothing -> error ("Splitting on nonexisting column.")
