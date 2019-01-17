@@ -51,7 +51,7 @@ check = foldHasql checkAlgebra
       , (exprarg, lamarg, colarg, lsarg)
       , lambda1
       , (fExprOper, fExprCond, fExprString, fExprBool, fExprInt, fExprIdent)
-      , operator1)
+      , fOperator)
     fHasql tableEnv typeCheck = typeCheck tableEnv
     fInit tables = foldr (\(k, t) prev -> M.insert k t prev) M.empty tables
     fTable name columns =
@@ -124,8 +124,7 @@ check = foldHasql checkAlgebra
       case M.lookup s env of
         Just t -> (Ident s, t)
         Nothing -> error ("Variable " ++ s ++ " not defined")
-    operator1 :: Operator -> Operator
-    operator1 = id
+    fOperator = id
     lamda1 :: TExpression -> TLambda
     lamda1 expr env =
       let (e, t) = expr env
