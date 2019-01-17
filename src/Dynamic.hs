@@ -114,8 +114,8 @@ doOperationAdd = undefined
 getPK :: Environment -> String -> IColumn
 getPK env i = snd $ head $ filter (\(k,v) -> Primary `elem` colmodICol v) (M.toList (oldTableEnv env i))
 
-fetched :: Environment -> String -> [(String, Type)]
-fetched env i = map (\colString -> (colString, typeICol (fetchColumn colString))) ss
+fetched :: Environment -> String -> [String] -> [(String, Type)]
+fetched env i ss = map (\colString -> (colString, typeICol (fetchColumn colString))) ss
     where 
         fetchColumn :: String -> IColumn
         fetchColumn c = fromMaybe (error "Splitting on nonexisting column.") (M.lookup c (oldTableEnv env i))
@@ -125,18 +125,37 @@ oldTableEnv env i =  fromJust $ M.lookup i $ table env
 
 doOperationDecouple :: Environment -> Expression -> [String] -> (Code, Environment)
 doOperationDecouple env (Ident i) ss 
-    = Code 
+    = (Code 
         { upgrade=[
             "CREATE TABLE " ++ decoupledName ++ " ( "
-            ++ 
-            "ALTER TABLE " ++ i ++ " "
-            ++ " "
-        ]} 
+            ++ nameICol columnPK ++ " " ++ show (typeICol columnPK) ++ " PRIMARY KEY NOT NULL,"
+            ++ concatMap (\(colString, colType) -> concat [colString, " ", show colType, ","]) (fetched env i ss)
+            ++ ");",
+            "INSERT INTO " ++ decoupledName ++ " ( "
+            ++ "SELECT  " ++ nameICol columnPK ++ ", " ++ nameInsert ", "
+            ++ "FROM " ++ i
+            ++ ");",
+            "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ nameInsert ", DROP COLUMN "  ++ ";"
+        ], downgrade=[
+            "ALTER TABLE " ++ i
+            ++ "ADD COLUMN " ++ nameInsert ", ADD COLUMN " ++ ";",
+            "INSERT INTO " ++ i ++ " ( " ++ nameInsert ", " ++ " )" ++ " ( "
+            ++ "SELECT " ++ nameInsert ", "
+            ++ "FROM " ++ decoupledName
+            ++ "WHERE " ++ i ++ "." ++ nameICol columnPK ++ " == " ++ decoupledName ++ "." ++ nameICol columnPK
+            ++ ");",
+            "DROP TABLE " ++ decoupledName ++ ";"
+         ]
+        }, env)
         where
             columnPK :: IColumn
             columnPK = getPK env i
-            decoupledName = i ++ "_decoupled" ++ show (count 0)
-            count x = case M.lookup (i ++ "_decoupled"  ++ show x) env of 
+            nameInsert :: String -> String
+            nameInsert x = intercalate x ss
+            decoupledName :: String
+            decoupledName = i ++ "_decoupled" ++ (show $ count 0)
+            count :: Int -> Int
+            count x = case M.lookup (i ++ "_decoupled"  ++ show x) (table env) of 
                         Just _ -> count x + 1
                         Nothing -> x
 
@@ -149,7 +168,7 @@ doOperationSplit env (Ident i) ss s
         { upgrade=[
             "CREATE TABLE " ++ s ++ " ( "
             ++ nameICol columnPK ++ " " ++ show (typeICol columnPK) ++ " PRIMARY KEY NOT NULL,"
-            ++ concatMap (\(colString, colType) -> concat [colString, " ", show colType, ","]) fetched
+            ++ concatMap (\(colString, colType) -> concat [colString, " ", show colType, ","]) (fetched env i ss)
             ++ ");",
             "INSERT INTO " ++ s ++ " ( "
             ++ "SELECT  " ++ nameICol columnPK ++ ", " ++ nameInsert ", "
@@ -171,7 +190,7 @@ doOperationSplit env (Ident i) ss s
           columnPK :: IColumn
           columnPK = getPK env i
           nameInsert :: String -> String
-          nameInsert x = intercalate x (map fst fetched)
+          nameInsert x = intercalate x (map fst (fetched env i ss))
           
 
 doOperationRename :: Environment -> Expression -> String -> (Code, Environment)
