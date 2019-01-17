@@ -53,7 +53,7 @@ check = foldHasql checkAlgebra
       , (fExprOper, fExprCond, fExprString, fExprBool, fExprInt, fExprIdent)
       , fOperator)
     fHasql tableEnv typeCheck = typeCheck tableEnv
-    fInit tables = foldr (\(k, t) prev -> M.insert k t prev) M.empty tables
+    fInit = foldr (\(k, t) prev -> M.insert k t prev) M.empty
     fTable name columns =
       (name, foldr (\(Column n t m) prev -> M.insert n (t, m) prev) M.empty columns)
     fCol name columnType modifiers
@@ -67,7 +67,7 @@ check = foldHasql checkAlgebra
         (\env f -> f env)
         TypeEnvironment {table = tableEnv, var = M.empty}
         statementFunctions
-    fStatDecl name typ fExpr (env@TypeEnvironment {table = tEnv, var = vEnv}) =
+    fStatDecl name typ fExpr env@TypeEnvironment {table = tEnv, var = vEnv} =
       if M.notMember name vEnv
         then let (_, exprType) = fExpr env
               in if typ == exprType
@@ -162,33 +162,33 @@ check = foldHasql checkAlgebra
     operation1 = id
     operstat :: Operation -> [TArgument] -> TStatement
     --add column (NOT TESTED)
-    operstat (OperationAdd) [a1, a2] env = do
+    operstat OperationAdd [a1, a2] env = do
       let TypeEnvironment {table = tenv, var = venv} = env
       let (Ident tableIdent) = extractIdent (fst (a1 env))
       let (Column n t1 mds) = extractColumn (fst (a2 env))
       case M.lookup tableIdent tenv of
-        (Just table_env) -> do
-          case (M.lookup n table_env) of
+        (Just table_env) ->
+          case M.lookup n table_env of
             (Just _) ->
               error
                 ("Column " ++ n ++ " does already exist in Table " ++ tableIdent)
-            Nothing -> do
+            Nothing ->
               let newTenv = M.insert n (t1, mds) table_env
                in (TypeEnvironment
                       { var = venv
-                      , table = M.adjust (\_ -> newTenv) tableIdent tenv
+                      , table = M.adjust (const newTenv) tableIdent tenv
                       })
         Nothing -> error ("Table " ++ tableIdent ++ " does not exist")
     --split table
-    operstat (OperationSplit) [a1, a2, a3] env = do
+    operstat OperationSplit [a1, a2, a3] env = do
       let TypeEnvironment {table = tenv, var = venv} = env
       let (Ident tableIdent) = extractIdent (fst (a1 env))
       let newtablename = extractString (fst (a2 env))
       let stringlist = extractStringList (fst (a3 env))
       case M.lookup tableIdent tenv of
-        (Just table_env) -> do
-          case (M.lookup newtablename tenv) of
-            Nothing -> do
+        (Just table_env) ->
+          case M.lookup newtablename tenv of
+            Nothing ->
               let newEnv =
                     foldr
                       (moveColumn tableIdent newtablename)
@@ -196,37 +196,55 @@ check = foldHasql checkAlgebra
                       stringlist
                in (TypeEnvironment
                       { var = venv
-                      , table = (M.insert newtablename M.empty newEnv)
+                      , table = M.insert newtablename M.empty newEnv
                       })
             Just t -> error ("Table " ++ newtablename ++ " does already exist")
         Nothing -> error ("Table " ++ tableIdent ++ " does not exist")
-
-    moveColumn :: String -> String -> String -> TableEnv -> TableEnv
-    moveColumn tfrom tto col tenv = do
-      let (Just tablefrom) = M.lookup tfrom tenv
-      let (Just tableto) = M.lookup tto tenv
-      case M.lookup col tablefrom of
-        (Just (t, mds)) ->
-          case M.lookup col tableto of
-            Nothing -> do
-              let newEnv = M.adjust (\_ -> M.delete col tablefrom) tfrom tenv
-               in M.adjust (\_ -> M.insert col (t, mds) tableto) tto newEnv
-            (Just _) ->
-              error ("Column " ++ col ++ " does already exist in table " ++ tto)
-        Nothing ->
-          error ("Column " ++ col ++ " does not exist in table " ++ tfrom)
-
-    assstat :: String -> TExpression -> TStatement
-    assstat var expr env = do
+    -- Rename table
+    operstat OperationRename [a1, a2] env = do
       let TypeEnvironment {table = tenv, var = venv} = env
-      case M.lookup var venv of
-        (Just t1) -> do
-          let (ex, t) = expr env
-          case t1==t of
-            True -> env
-            False -> error ("Variable "++var++" is of type "++show(t1)++" but type "++show(t)++" was given")
-        Nothing -> error ("Variable "++var++" does is not defined")
-  
+      let Ident tableIdent = extractIdent (fst (a1 env))
+      let newName = extractString (fst (a2 env))
+      case M.lookup tableIdent tenv of
+        Just curtable ->
+          case M.lookup newName tenv of
+            Nothing ->
+              TypeEnvironment
+                  { var = venv
+                  , table = M.insert newName curtable $ M.delete tableIdent tenv
+                  }
+            Just _ ->
+              error
+                ("Table " ++
+                 show newName ++ " does already exist in this environment")
+        Nothing -> error ("Table " ++ show tableIdent ++ " does not exist")
+
+moveColumn :: String -> String -> String -> TableEnv -> TableEnv
+moveColumn tfrom tto col tenv = do
+  let (Just tablefrom) = M.lookup tfrom tenv
+  let (Just tableto) = M.lookup tto tenv
+  case M.lookup col tablefrom of
+    (Just (t, mds)) ->
+      case M.lookup col tableto of
+        Nothing ->
+          let newEnv = M.adjust (\_ -> M.delete col tablefrom) tfrom tenv
+            in M.adjust (\_ -> M.insert col (t, mds) tableto) tto newEnv
+        (Just _) ->
+          error ("Column " ++ col ++ " does already exist in table " ++ tto)
+    Nothing ->
+      error ("Column " ++ col ++ " does not exist in table " ++ tfrom)
+
+assstat :: String -> TExpression -> TStatement
+assstat var expr env = do
+  let TypeEnvironment {table = tenv, var = venv} = env
+  case M.lookup var venv of
+    (Just t1) -> do
+      let (ex, t) = expr env
+      if t1==t
+        then env
+        else error ("Variable "++var++" is of type "++show t1++" but type "++show t++" was given")
+    Nothing -> error ("Variable "++var++" does is not defined")
+
 extractIdent :: Argument -> Expression
 extractIdent (ArgExpression i@(Ident s)) = i
 extractIdent a = error ("Ident expected, " ++ show a ++ " given.")
