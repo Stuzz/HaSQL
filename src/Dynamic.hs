@@ -4,6 +4,7 @@ import Algebra
 import qualified Data.Map as M
 import Syntax
 import Data.Maybe
+import Data.List
 
 data IColumn = IColumn {
     nameICol :: String,
@@ -20,7 +21,6 @@ data IVar = IVar {
     typeIVar :: Type,
     valIVar :: Constant
 }
-
 
 type TableEnv = M.Map String (M.Map String IColumn)
 
@@ -123,23 +123,24 @@ doOperationSplit :: Environment -> Expression -> [String] -> String -> (Code, En
 doOperationSplit env (Ident i) ss s
     = (Code { upgrade=[
         "CREATE TABLE " ++ s ++ " ( "
-        ++ nameICol getPK ++ " " ++ typeICol getPK ++ " PRIMARY KEY NOT NULL,"
-        ++ map (\(colString, colType) -> concat [colString, " ", colType, ","]) fetched
+        ++ nameICol getPK ++ " " ++ show (typeICol getPK) ++ " PRIMARY KEY NOT NULL,"
+        ++ concatMap (\(colString, colType) -> concat [colString, " ", show colType, ","]) fetched
         ++ ");",
         "INSERT INTO " ++ s ++ " ( "
-        ++ "SELECT  " ++ nameICol getPK ++ ", " ++ concat (intersperse ", " (map fst fetched))
+        ++ "SELECT  " ++ nameICol getPK ++ ", " ++ intercalate ", " (map fst fetched)
         ++ "FROM " ++ i
         ++ ");",
-        "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ concat (intersperse ", DROP COLUMN " (map fst fetched)) ++ ";"
+        "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ intercalate ", DROP COLUMN " (map fst fetched) ++ ";"
         ], downgrade=[
         ] }, env)
     where getPK :: IColumn
-          getPK = snd $ head $ filter (\(k,v) ->  elem Primary (colmodICol v)) (M.toList oldTableEnv)
+          getPK = snd $ head $ filter (\(k,v) ->  Primary `elem` colmodICol v) (M.toList oldTableEnv)
+          fetched :: [(String, Type)]
           fetched = map (\colString -> (colString, typeICol (fetchColumn colString))) ss
+          oldTableEnv :: M.Map String IColumn
           oldTableEnv = fromJust $ M.lookup i $ table env
-          fetchColumn c = case M.lookup c oldTableEnv of
-            Just icol -> icol
-            Nothing -> error ("Splitting on nonexisting column.")
+          fetchColumn :: String -> IColumn
+          fetchColumn c = fromMaybe (error "Splitting on nonexisting column.") (M.lookup c oldTableEnv)
 
 doOperationRename :: Environment -> Expression -> String -> (Code, Environment)
 doOperationRename env (Ident i) s
