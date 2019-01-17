@@ -34,22 +34,20 @@ data Environment = Environment {
 data Code = Code {
     upgrade :: [String],
     downgrade :: [String]
-}
+} deriving (Show)
 
 type Migration = Environment -> (Code, Environment)
 
-generate :: Hasql -> [String]
-generate = foldHasql generateAlgebra
-    where
-        generateAlgebra =
-            (hasql1, init1, table1,
-            col1, colmod1, typ1, up1,
+generate :: Hasql -> Code
+generate h = foldHasql (hasql1, init1, table1,
+            col1, colmod1, id, up1,
             (declstat, assstat, operstat),
-            operation1,
-            (exprarg, lamarg, colarg, lsarg),
-            lambda1,
-            (operexpr, condexpr, string1, bool1, int1, ident1),
-            id)
+            id,
+            (\(StringConst s) -> ArgExpression $ ConstString s, ArgLambda, \icol -> ArgColumn $ Column (nameICol icol) (typeICol icol) (colmodICol icol), ArgStringList),
+            undefined,
+            (undefined, undefined, undefined, undefined, undefined, StringConst),
+            id) h
+
 
 hasql1 :: TableEnv -> Migration -> Code
 hasql1 i u = fst $ u (Environment { table = i, var = M.empty })

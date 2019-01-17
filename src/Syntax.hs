@@ -101,7 +101,7 @@ data ColumnModifier
   = Primary
   -- | TODO: Foreign keys relations can not be defined yet.
   | Foreign
-  deriving (Show)
+  deriving (Show, Eq)
 
 newtype Lambda =
   Lambda Expression
