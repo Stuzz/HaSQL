@@ -63,7 +63,7 @@ generate =
       , \ls env -> ArgStringList ls)
     , undefined
     , ( undefined
-      , undefined
+      , fExprCond
       , \val env -> StringConst val
       , \val env -> BoolConst val
       , \val env -> IntConst val
