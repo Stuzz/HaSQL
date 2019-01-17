@@ -19,7 +19,7 @@ data TypeEnvironment = TypeEnvironment
 type TExpression = TypeEnvironment -> (Expression, Type)
 
 type TArgument = TypeEnvironment -> (Argument, Type)
-type TLambda = TExpression -> (Lambda, Type)
+type TLambda = TypeEnvironment -> (Lambda, Type)
 type TStatement = TypeEnvironment -> (Statement, TypeEnvironment)
 
 
@@ -78,39 +78,42 @@ check = foldHasql checkAlgebra
       case M.lookup s venv of
         Just t -> (s, t)
         Nothing -> error ("Variable " ++ s ++ " not defined")
+
     fExprOper expression1 operator expression2 env =
       case (operator, exprType) of
-        (OperAdd, Just TypeInt) -> expression1 OperAdd expression2
+        (OperAdd, Just TypeInt) -> (Expr e1 OperAdd e2, TypeInt)
         (OperAdd, _) -> error "Arguments of addition were not both integers"
-        (OperSubtract, Just TypeInt) -> expression1 OperSubtract expression2
+
+        (OperSubtract, Just TypeInt) -> (Expr e1 OperSubtract e2, TypeInt)
         (OperSubtract, _) ->
           error "Arguments of subtraction were not both integers"
-        (OperMultiply, Just TypeInt) -> expression1 OperMultiply expression2
+
+        (OperMultiply, Just TypeInt) -> (Expr e1 OperMultiply e2, TypeInt)
         (OperMultiply, _) ->
           error "Arguments of multiplication were not both integers"
-        (OperDivide, Just TypeInt) -> expression1 OperDivide expression2
+
+        (OperDivide, Just TypeInt) -> (Expr e1 OperDivide e2, TypeInt)
         (OperDivide, _) -> error "Arguments of division were not both integers"
-        (OperConcatenate, Just TypeString) ->
-          expression1 OperConcatenate expression2
+        (OperConcatenate, Just TypeString) -> (Expr e1 OperConcatenate e2, TypeString)
           -- XXX: This should not be a probem though!
         (OperConcatenate, _) ->
           error "Arguments of concatenation were not both strings"
-        (OperEquals, Just TypeBool) -> expression1 OperEquals expression2
+        (OperEquals, Just TypeBool) -> (Expr e1 OperEquals e1, TypeBool)
         (OperEquals, _) -> error "Arguments of (==) were not both booleans"
-        (OperNotEquals, Just TypeBool) -> expression1 OperNotEquals expression2
+        (OperNotEquals, Just TypeBool) -> (Expr e1 OperNotEquals e2, TypeBool)
         (OperNotEquals, _) -> error "Arguments of (!=) were not both booleans"
         (OperLesserThan, Just TypeBool) ->
-          expression1 OperLesserThan expression2
+          (Expr e1 OperLesserThan e2, TypeBool)
         (OperLesserThan, _) -> error "Arguments of (<) were not both booleans"
         (OperLesserEquals, Just TypeBool) ->
-          expression1 OperLesserEquals expression2
+          (Expr e2 OperLesserEquals e1, TypeBool)
         (OperLesserEquals, _) ->
           error "Arguments of (<=) were not both booleans"
         (OperGreaterThan, Just TypeBool) ->
-          expression1 OperGreaterThan expression2
+          (Expr e1 OperGreaterThan e2, TypeBool)
         (OperGreaterThan, _) -> error "Arguments of (>) were not both booleans"
         (OperGreaterEquals, Just TypeBool) ->
-          expression1 OperGreaterEquals expression2
+          (Expr e1 OperGreaterEquals e2, TypeBool)
         (OperGreaterEquals, _) ->
           error "Arguments of (>=) were not both booleans"
       where
@@ -131,13 +134,13 @@ check = foldHasql checkAlgebra
     lamarg :: TLambda -> TArgument
     lamarg lambda env = let (l, t) = lambda env in (ArgLambda l, t)
     colarg :: Column -> TArgument
-    colarg c env = ArgColumn c
+    colarg c env = (ArgColumn c, TypeString) -- String as placeholder "type"
     lsarg :: [String] -> TArgument
-    lsarg asl env = let (a, t) = asl env in (ArgStringList a, t)
+    lsarg asl env = (ArgStringList asl, TypeString) -- String as placeholder "type"
 
     operation1 :: Operation -> Operation
     operation1 = id
-    
+
     operstat :: Operation -> [TArgument] -> TStatement
     --add column (NOT TESTED)
     operstat (OperationAdd) [a1 , a2] env = do
