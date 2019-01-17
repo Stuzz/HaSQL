@@ -22,6 +22,8 @@ data IVar = IVar {
     valIVar :: Constant
 }
 
+-- data IArgument = IArgConst Constant | IArgLambda Lambda | IArgCol IColumn | IArgStringList [String]
+
 type TableEnv = M.Map String (M.Map String IColumn)
 
 type VarEnv = M.Map String IVar
@@ -43,7 +45,12 @@ generate h = foldHasql (hasql1, init1, table1,
             col1, colmod1, id, up1,
             (declstat, assstat, operstat),
             id,
-            (\(StringConst s) -> ArgExpression $ ConstString s, ArgLambda, \icol -> ArgColumn $ Column (nameICol icol) (typeICol icol) (colmodICol icol), ArgStringList),
+            (\(StringConst s) -> ArgExpression (ConstString s),
+                ArgLambda,
+                \icol -> ArgColumn (Column
+                (nameICol icol)
+                (typeICol icol)
+                (colmodICol icol)), ArgStringList),
             undefined,
             (undefined, undefined, undefined, undefined, undefined, StringConst),
             id) h
@@ -92,33 +99,33 @@ assstat s c env
 operstat :: Operation -> [Argument] -> Migration
 operstat OperationAdd args env = doOperationAdd env tableName columnName lambda
     where
-        tableName = extractIdent (args!!0)
+        tableName = extractString (args!!0)
         columnName = extractColumn (args!!1)
         lambda = extractLambda (args!!2)
 operstat OperationSplit args env = doOperationSplit env tableName columnNames newTableName
     where
-        tableName = extractIdent (args!!0)
+        tableName = extractString (args!!0)
         columnNames = extractStringList (args!!1)
         newTableName = extractString (args!!2)
 operstat OperationDecouple args env = undefined
 operstat OperationNormalize args env = undefined
 operstat OperationRename args env = doOperationRename env tableName newTableName
     where
-        tableName = extractIdent (args!!0)
+        tableName = extractString (args!!0)
         columnNames = extractStringList (args!!1)
         newTableName = extractString (args!!2)
 
-doOperationAdd :: Environment -> Expression -> Column -> Lambda -> (Code, Environment)
+doOperationAdd :: Environment -> String -> Column -> Lambda -> (Code, Environment)
 doOperationAdd = undefined
 
-doOperationDecouple :: Environment -> Expression -> [String] -> (Code, Environment)
+doOperationDecouple :: Environment -> String -> [String] -> (Code, Environment)
 doOperationDecouple = undefined
 
-doOperationNormalize :: Environment -> Expression -> String -> [String] -> (Code, Environment)
+doOperationNormalize :: Environment -> String -> String -> [String] -> (Code, Environment)
 doOperationNormalize = undefined
 
-doOperationSplit :: Environment -> Expression -> [String] -> String -> (Code, Environment)
-doOperationSplit env (Ident i) ss s
+doOperationSplit :: Environment -> String -> [String] -> String -> (Code, Environment)
+doOperationSplit env i ss s
     = (Code
         { upgrade=[
             "CREATE TABLE " ++ s ++ " ( "
@@ -152,8 +159,8 @@ doOperationSplit env (Ident i) ss s
           fetchColumn :: String -> IColumn
           fetchColumn c = fromMaybe (error "Splitting on nonexisting column.") (M.lookup c oldTableEnv)
 
-doOperationRename :: Environment -> Expression -> String -> (Code, Environment)
-doOperationRename env (Ident i) s
+doOperationRename :: Environment -> String -> String -> (Code, Environment)
+doOperationRename env i s
     = (Code { upgrade=["ALTER TABLE " ++ i ++ " RENAME TO " ++ s],
         downgrade=["ALTER TABLE " ++ s ++ " RENAME TO " ++ i] }, newEnv)
     where

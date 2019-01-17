@@ -30,7 +30,7 @@ type HasqlAlgebra hasql init up table column colmod typ statement expression ope
        , column -> argument
        , [String] -> argument)
         -- | Lambda
-     , expression -> lambda
+     , Expression -> lambda
         -- | Expression
      , ( expression -> operator -> expression -> expression -- ^ Expression
        , expression -> expression -> expression -> expression -- ^ Conditional
@@ -63,7 +63,7 @@ foldHasql (fHasql, fInit, fTable, fCol, fColmod, fTyp, fUp, (fStatDecl, fStatAss
     fArgument' (ArgLambda l) = fArgLam (fLambda' l)
     fArgument' (ArgColumn c) = fArgCol (fColumn' c)
     fArgument' (ArgStringList ss) = fArgLis ss
-    fLambda' (Lambda e) = fLambda (fExpression' e)
+    fLambda' (Lambda e) = fLambda e
     fExpression' (Expr e1 op e2) =
       fExprOper (fExpression' e1) (fOper op) (fExpression' e2)
     fExpression' (Conditional e1 e2 e3) =
