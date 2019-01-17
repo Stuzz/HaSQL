@@ -49,10 +49,10 @@ generate h = foldHasql generateAlgebra h
             (exprarg, lamarg, colarg, lsarg),
             lambda1,
             (operexpr, condexpr, string1, bool1, int1, ident1),
-            operator1)
+            id)
 
 hasql1 :: TableEnv -> Migration -> Code
-hasql1 i u = u (Environment { table = i, var = M.empty })
+hasql1 i u = fst $ u (Environment { table = i, var = M.empty })
 
 init1 :: [(String, M.Map String IColumn)] -> TableEnv
 init1 ts = foldr (\(k, icols) prev -> M.insert k icols prev) M.empty ts
@@ -72,7 +72,7 @@ up1 ms env
     where
         up' :: [Migration] -> (Code, Environment) -> (Code, Environment)
         up' [] acc = acc
-        up' (s:ss) acc = up' ss (process (s env) acc)
+        up' (s:ss) acc = up' ss (process s acc)
         process :: Migration -> (Code, Environment) -> (Code, Environment)
         process current (prevCode, prevEnv)
             = let (nextCode, nextEnv) = current prevEnv
@@ -81,12 +81,12 @@ up1 ms env
 
 declstat :: String -> Type -> Constant -> Migration
 declstat s t constExpr env
-    = ([], M.insert s
-        (IVar {nameIVar = s, typeIVar = t, valIVar = constExpr}) env)
+    = (Code {upgrade = [], downgrade = []}, Environment { var = M.insert s
+        (IVar {nameIVar = s, typeIVar = t, valIVar = constExpr}) (var env), table = table env})
 
 assstat :: String -> Constant -> Migration
 assstat s c env
-    = ([], M.update updateValue s env)
+    = (Code {upgrade = [], downgrade = []}, Environment { var = M.update updateValue s (var env), table = table env })
     where
         updateValue (IVar { nameIVar = n, typeIVar = t })
             = Just $ IVar { nameIVar = n, typeIVar = t, valIVar = c }
@@ -104,7 +104,7 @@ operstat OperationSplit args env = doOperationSplit env tableName columnNames ne
         newTableName = extractString (args!!2)
 operstat OperationDecouple args env = undefined
 operstat OperationNormalize args env = undefined
-operstat OperationRename args env = doOperationRename env tableName columnNames newTableName
+operstat OperationRename args env = doOperationRename env tableName newTableName
     where
         tableName = extractIdent (args!!0)
         columnNames = extractStringList (args!!1)
@@ -121,24 +121,36 @@ doOperationNormalize = undefined
 
 doOperationSplit :: Environment -> Expression -> [String] -> String -> (Code, Environment)
 doOperationSplit env (Ident i) ss s
-    = (Code { upgrade=[
-        "CREATE TABLE " ++ s ++ " ( "
-        ++ nameICol getPK ++ " " ++ show (typeICol getPK) ++ " PRIMARY KEY NOT NULL,"
-        ++ concatMap (\(colString, colType) -> concat [colString, " ", show colType, ","]) fetched
-        ++ ");",
-        "INSERT INTO " ++ s ++ " ( "
-        ++ "SELECT  " ++ nameICol getPK ++ ", " ++ intercalate ", " (map fst fetched)
-        ++ "FROM " ++ i
-        ++ ");",
-        "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ intercalate ", DROP COLUMN " (map fst fetched) ++ ";"
-        ], downgrade=[
-        ] }, env)
+    = (Code
+        { upgrade=[
+            "CREATE TABLE " ++ s ++ " ( "
+            ++ nameICol getPK ++ " " ++ show (typeICol getPK) ++ " PRIMARY KEY NOT NULL,"
+            ++ concatMap (\(colString, colType) -> concat [colString, " ", show colType, ","]) fetched
+            ++ ");",
+            "INSERT INTO " ++ s ++ " ( "
+            ++ "SELECT  " ++ nameICol getPK ++ ", " ++ nameInsert ", "
+            ++ "FROM " ++ i
+            ++ ");",
+            "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ nameInsert ", DROP COLUMN "  ++ ";"
+        ],
+         downgrade=[
+            "ALTER TABLE " ++ i
+            ++ "ADD COLUMN " ++ nameInsert ", ADD COLUMN " ++ ";",
+            "INSERT INTO " ++ i ++ " ( " ++ nameInsert ", " ++ " )" ++ " ( "
+            ++ "SELECT " ++ nameInsert ", "
+            ++ "FROM " ++ s
+            ++ "WHERE " ++ i ++ "." ++ nameICol getPK ++ " == " ++ s ++ "." ++ nameICol getPK
+            ++ ");",
+            "DROP TABLE " ++ s ++ ";"
+         ]}, env)
     where getPK :: IColumn
           getPK = snd $ head $ filter (\(k,v) ->  Primary `elem` colmodICol v) (M.toList oldTableEnv)
           fetched :: [(String, Type)]
           fetched = map (\colString -> (colString, typeICol (fetchColumn colString))) ss
           oldTableEnv :: M.Map String IColumn
           oldTableEnv = fromJust $ M.lookup i $ table env
+          nameInsert :: String -> String
+          nameInsert x = intercalate x (map fst fetched)
           fetchColumn :: String -> IColumn
           fetchColumn c = fromMaybe (error "Splitting on nonexisting column.") (M.lookup c oldTableEnv)
 
