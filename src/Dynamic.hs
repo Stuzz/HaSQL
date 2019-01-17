@@ -60,15 +60,18 @@ generate = foldHasql (hasql1, init1, table1,
             id)
 
 fArgExpr ::IConstant -> IArgument
-fArgExpr c env = ArgExpression $ case c env of
+fArgExpr c env = ArgExpression $ convConstToExpr (c env)
+
+convConstToExpr :: Constant -> Expression
+convConstToExpr c = case c of
                     BoolConst i -> ConstBool i
                     IntConst i -> ConstInt i
                     StringConst i -> ConstString i
 
 fExprCond :: IConstant -> IConstant -> IConstant -> IConstant
 fExprCond b true false env = case b env of
-    ConstBool True -> true env
-    ConstBool False -> false env
+    BoolConst True -> true env
+    BoolConst False -> false env
     _ -> error "Static checking error: invalid argument given to condition"
 
 fExprIdent :: String -> IConstant
