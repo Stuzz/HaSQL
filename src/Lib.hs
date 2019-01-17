@@ -5,7 +5,6 @@ module Lib
 import Lexer
 import Parser
 import Algebra
-import qualified Static
 import qualified Dynamic
 import Syntax
 
@@ -13,11 +12,15 @@ import Syntax
 --
 -- TODO: This should of course return SQL files for both the up and the down
 --       migration.
-parseSql :: String -> [String]
-parseSql input = do
-  let hasql = parse $ scan input
-  let checked = Static.check hasql
-  return Dynamic.generate hasql
+parseSql :: String -> Dynamic.Code
+parseSql input
+  = undefined
+    -- let hasql = parse $ scan input
+    -- in Dynamic.generate hasql
+  -- let checked = Static.check hasql
+
+compile :: Hasql -> Dynamic.Code
+compile = Dynamic.generate
 
 example :: Hasql
 example = Hasql init up

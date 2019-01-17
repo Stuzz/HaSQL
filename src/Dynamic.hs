@@ -22,6 +22,8 @@ data IVar = IVar {
     valIVar :: Constant
 }
 
+-- data IArgument = IArgConst Constant | IArgLambda Lambda | IArgCol IColumn | IArgStringList [String]
+
 type TableEnv = M.Map String (M.Map String IColumn)
 
 type VarEnv = M.Map String IVar
@@ -43,7 +45,12 @@ generate h = foldHasql (hasql1, init1, table1,
             col1, colmod1, id, up1,
             (declstat, assstat, operstat),
             id,
-            (\(StringConst s) -> ArgExpression $ ConstString s, ArgLambda, \icol -> ArgColumn $ Column (nameICol icol) (typeICol icol) (colmodICol icol), ArgStringList),
+            (\(StringConst s) -> ArgExpression (ConstString s),
+                ArgLambda,
+                \icol -> ArgColumn (Column
+                (nameICol icol)
+                (typeICol icol)
+                (colmodICol icol)), ArgStringList),
             undefined,
             (undefined, undefined, undefined, undefined, undefined, StringConst),
             id) h
@@ -92,19 +99,19 @@ assstat s c env
 operstat :: Operation -> [Argument] -> Migration
 operstat OperationAdd args env = doOperationAdd env tableName columnName lambda
     where
-        tableName = extractIdent (args!!0)
+        tableName = extractString (args!!0)
         columnName = extractColumn (args!!1)
         lambda = extractLambda (args!!2)
 operstat OperationSplit args env = doOperationSplit env tableName columnNames newTableName
     where
-        tableName = extractIdent (args!!0)
+        tableName = extractString (args!!0)
         columnNames = extractStringList (args!!1)
         newTableName = extractString (args!!2)
 operstat OperationDecouple args env = undefined
 operstat OperationNormalize args env = undefined
 operstat OperationRename args env = doOperationRename env tableName newTableName
     where
-        tableName = extractIdent (args!!0)
+        tableName = extractString (args!!0)
         columnNames = extractStringList (args!!1)
         newTableName = extractString (args!!2)
 
@@ -113,7 +120,7 @@ getPK env i = snd $ head $ filter (\(k,v) -> Primary `elem` colmodICol v) (M.toL
 
 fetched :: Environment -> String -> [String] -> [(String, Type)]
 fetched env i ss = map (\colString -> (colString, typeICol (fetchColumn colString))) ss
-    where 
+    where
         fetchColumn :: String -> IColumn
         fetchColumn c = fromMaybe (error "Splitting on nonexisting column.") (M.lookup c (oldTableEnv env i))
 
@@ -133,7 +140,7 @@ doOperationAdd env c lambda
         }
     , env)
 
-doOperationDecouple :: Environment -> Expression -> [String] -> (Code, Environment)
+doOperationDecouple :: Environment -> String -> [String] -> (Code, Environment)
 doOperationDecouple env (Ident i) ss 
     = (Code 
         { upgrade=[
@@ -165,15 +172,15 @@ doOperationDecouple env (Ident i) ss
             decoupledName :: String
             decoupledName = i ++ "_decoupled" ++ (show $ count 0)
             count :: Int -> Int
-            count x = case M.lookup (i ++ "_decoupled"  ++ show x) (table env) of 
+            count x = case M.lookup (i ++ "_decoupled"  ++ show x) (table env) of
                         Just _ -> count x + 1
                         Nothing -> x
 
-doOperationNormalize :: Environment -> Expression -> String -> [String] -> (Code, Environment)
+doOperationNormalize :: Environment -> String -> String -> [String] -> (Code, Environment)
 doOperationNormalize = undefined
 
-doOperationSplit :: Environment -> Expression -> [String] -> String -> (Code, Environment)
-doOperationSplit env (Ident i) ss s
+doOperationSplit :: Environment -> String -> [String] -> String -> (Code, Environment)
+doOperationSplit env i ss s
     = (Code
         { upgrade=[
             "CREATE TABLE " ++ s ++ " ( "
@@ -201,10 +208,10 @@ doOperationSplit env (Ident i) ss s
           columnPK = getPK env i
           nameInsert :: String -> String
           nameInsert x = intercalate x (map fst (fetched env i ss))
-          
 
-doOperationRename :: Environment -> Expression -> String -> (Code, Environment)
-doOperationRename env (Ident i) s
+
+doOperationRename :: Environment -> String -> String -> (Code, Environment)
+doOperationRename env i s
     = (Code { upgrade=["ALTER TABLE " ++ i ++ " RENAME TO " ++ s],
         downgrade=["ALTER TABLE " ++ s ++ " RENAME TO " ++ i] }, newEnv)
     where
