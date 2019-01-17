@@ -128,8 +128,7 @@ check = foldHasql checkAlgebra
     fOperator :: Operator -> Operator
     fOperator = id
     lambda1 :: Expression -> (Lambda,Type)
-    lambda1 expr = eval expr
-
+    lambda1 expr = let (e, t) = eval expr in (Lambda e, t)
 
     eval :: Expression -> (Expression, Type)
     eval (Expr e1 op e2) = fExprOper (const (eval e1)) op (const (eval e2)) "placeholder"
@@ -164,8 +163,7 @@ check = foldHasql checkAlgebra
                 ("Column " ++ n ++ " does already exist in Table " ++ tableIdent)
             Nothing -> do
               let newTenv = M.insert n (t1, mds) table_env
-               in ( FunctionCall OperationAdd (map (\a -> fst (a env)) [a1, a2])
-                  , TypeEnvironment
+               in (TypeEnvironment
                       { var = venv
                       , table = M.adjust (\_ -> newTenv) tableIdent tenv
                       })
@@ -185,10 +183,7 @@ check = foldHasql checkAlgebra
                       (\column -> moveColumn tableIdent newtablename column)
                       tenv
                       stringlist
-               in ( FunctionCall
-                      OperationSplit
-                      (map (\a -> fst (a env)) [a1, a2, a3])
-                  , TypeEnvironment
+               in (TypeEnvironment
                       { var = venv
                       , table = (M.insert newtablename M.empty newEnv)
                       })
@@ -209,6 +204,7 @@ check = foldHasql checkAlgebra
         Nothing ->
           error ("Column " ++ col ++ " does not exist in table " ++ tfrom)
 
+  
 extractIdent :: Argument -> Expression
 extractIdent (ArgExpression i@(Ident s)) = i
 extractIdent a = error ("Ident expected, " ++ show a ++ " given.")
