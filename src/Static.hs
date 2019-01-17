@@ -46,7 +46,7 @@ check = foldHasql checkAlgebra
       , fColmod
       , fType
       , fUp
-      , (declstat, assstat, operstat)
+      , (fStatDecl, assstat, operstat)
       , operation1
       , (exprarg, lamarg, colarg, lsarg)
       , lambda1
@@ -67,6 +67,17 @@ check = foldHasql checkAlgebra
         (\env f -> f env)
         TypeEnvironment {table = tableEnv, var = M.empty}
         statementFunctions
+    fStatDecl name typ fExpr (env@TypeEnvironment {table = tEnv, var = vEnv}) =
+      if M.notMember name vEnv
+        then let (_, exprType) = fExpr env
+              in if typ == exprType
+                   then TypeEnvironment {table = tEnv, var = vEnv}
+                   else error $
+                        "Mismatched types during definition of " ++
+                        name ++
+                        ". Expected " ++
+                        show typ ++ ", got " ++ show exprType ++ "."
+        else error $ "Variable " ++ name ++ " is defined twice"
     fExprOper expression1 operator expression2 env =
       case (operator, exprType) of
         (OperAdd, Just TypeInt) -> (Expr e1 OperAdd e2, TypeInt)
