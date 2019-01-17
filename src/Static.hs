@@ -18,6 +18,8 @@ data TypeEnvironment = TypeEnvironment
   , var :: VarEnv
   }
 
+type TUp = (TableEnv -> TypeEnvironment)
+
 type TTable = (String, M.Map String (Type, [ColumnModifier]))
 
 type TColumn = (String, Type, [ColumnModifier])
@@ -28,14 +30,14 @@ type TArgument = TypeEnvironment -> (Argument, Type)
 
 type TLambda = TypeEnvironment -> (Lambda, Type)
 
-type TStatement = TypeEnvironment -> (Statement, TypeEnvironment)
+type TStatement = TypeEnvironment -> TypeEnvironment
 
 check :: Hasql -> TypeEnvironment
 check = foldHasql checkAlgebra
     -- TODO: The last four types are not properly defined yet, maybe
   where
     checkAlgebra ::
-         HasqlAlgebra TypeEnvironment TableEnv (TableEnv -> TypeEnvironment) TTable TColumn ColumnModifier Type TStatement TExpression Operation Argument Lambda Operator
+         HasqlAlgebra TypeEnvironment TableEnv TUp TTable TColumn ColumnModifier Type TStatement TExpression Operation Argument Lambda Operator
     checkAlgebra =
       ( fHasql
       , fInit
@@ -61,10 +63,10 @@ check = foldHasql checkAlgebra
     fColmod = id
     fType = id
     fUp statementFunctions tableEnv =
-      TypeEnvironment
-        { table = tableEnv
-        , var = M.unions $ map (\f -> f tableEnv) statementFunctions
-        }
+      foldl
+        (\env f -> f env)
+        TypeEnvironment {table = tableEnv, var = M.empty}
+        statementFunctions
     fExprOper expression1 operator expression2 env =
       case (operator, exprType) of
         (OperAdd, Just TypeInt) -> (Expr e1 OperAdd e2, TypeInt)
