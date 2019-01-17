@@ -137,6 +137,7 @@ check = foldHasql checkAlgebra
 
     operation1 :: Operation -> Operation
     operation1 = id
+    
     operstat :: Operation -> [TArgument] -> TStatement
     --add column (NOT TESTED)
     operstat (OperationAdd) [a1 , a2] env = do
@@ -164,8 +165,7 @@ check = foldHasql checkAlgebra
               case (M.lookup newtablename tenv) of
                   Nothing -> do
                       let newEnv = foldr (\column -> moveColumn tableIdent newtablename column) tenv stringlist in
-                        (FunctionCall OperationSplit (map (\a -> fst (a env)) [a1, a2, a3]), TypeEnvironment {var = venv, table = (M.insert newtablename M.empty newEnv)})
-                      
+                        (FunctionCall OperationSplit (map (\a -> fst (a env)) [a1, a2, a3]), TypeEnvironment {var = venv, table = (M.insert newtablename M.empty newEnv)})                      
                   Just t -> error ("Table "++newtablename++" does already exist")
           Nothing -> error ("Table "++tableIdent++" does not exist") 
 
