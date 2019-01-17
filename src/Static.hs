@@ -180,7 +180,7 @@ check = foldHasql checkAlgebra
             Nothing -> do
               let newEnv =
                     foldr
-                      (\column -> moveColumn tableIdent newtablename column)
+                      (moveColumn tableIdent newtablename)
                       tenv
                       stringlist
                in (TypeEnvironment
@@ -189,6 +189,7 @@ check = foldHasql checkAlgebra
                       })
             Just t -> error ("Table " ++ newtablename ++ " does already exist")
         Nothing -> error ("Table " ++ tableIdent ++ " does not exist")
+
     moveColumn :: String -> String -> String -> TableEnv -> TableEnv
     moveColumn tfrom tto col tenv = do
       let (Just tablefrom) = M.lookup tfrom tenv
@@ -204,6 +205,16 @@ check = foldHasql checkAlgebra
         Nothing ->
           error ("Column " ++ col ++ " does not exist in table " ++ tfrom)
 
+    assstat :: String -> TExpression -> TStatement
+    assstat var expr env = do
+      let TypeEnvironment {table = tenv, var = venv} = env
+      case M.lookup var venv of
+        (Just t1) -> do
+          let (ex, t) = expr env
+          case t1==t of
+            True -> env
+            False -> error ("Variable "++var++" is of type "++show(t1)++" but type "++show(t)++" was given")
+        Nothing -> error ("Variable "++var++" does is not defined")
   
 extractIdent :: Argument -> Expression
 extractIdent (ArgExpression i@(Ident s)) = i
