@@ -26,11 +26,11 @@ type VarEnv = M.Map String IVar
 
 data Environment = Environment {
     table :: TableEnv,
-    var :: VarEnv,
+    var :: VarEnv
 }
 
 data Code = Code {
-    upgrade :: [String]
+    upgrade :: [String],
     downgrade :: [String]
 }
 
@@ -86,8 +86,8 @@ assstat :: String -> Constant -> Migration
 assstat s c env
     = ([], M.update updateValue s env)
     where
-        updateValue (IVar { nameIVar n, typeIVar t })
-            = Just $ IVar { nameIVar n, typeIVar t, valueIVar c }
+        updateValue (IVar { nameIVar=n, typeIVar=t } )
+            = Just $ IVar { nameIVar=n, typeIVar=t, valueIVar=c }
 
 operstat :: Operation -> [Argument] -> Migration
 operstat OperationAdd args env = doOperationAdd env tableName columnName lambda
@@ -119,18 +119,28 @@ doOperationNormalize = undefined
 
 doOperationSplit :: Environment -> Ident -> [String] -> String -> (Code, Environment)
 doOperationSplit env (Ident i) ss s
-    = (Code { upgrade=[
-        "CREATE TABLE " ++ s ++ " ( "
-        ++ nameICol getPK ++ " " ++ typeICol getPK ++ " PRIMARY KEY NOT NULL,"
-        ++ map (\(colString, colType) -> concat [colString, " ", colType, ","]) fetched
-        ++ ");",
-        "INSERT INTO " ++ s ++ " ( "
-        ++ "SELECT  " ++ nameICol getPK ++ ", " ++ concat (intersperse ", " (map fst fetched))
-        ++ "FROM " ++ i
-        ++ ");",
-        "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ concat (intersperse ", DROP COLUMN " (map fst fetched)) ++ ";"
-        ], downgrade=[
-        ] }, env)
+    = (Code 
+        { upgrade=[
+            "CREATE TABLE " ++ s ++ " ( "
+            ++ nameICol getPK ++ " " ++ typeICol getPK ++ " PRIMARY KEY NOT NULL,"
+            ++ map (\(colString, colType) -> concat [colString, " ", colType, ","]) fetched
+            ++ ");",
+            "INSERT INTO " ++ s ++ " ( "
+            ++ "SELECT  " ++ nameICol getPK ++ ", " ++ concat (intersperse ", " (map fst fetched))
+            ++ "FROM " ++ i
+            ++ ");",
+            "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ concat (intersperse ", DROP COLUMN " (map fst fetched)) ++ ";"
+        ], 
+         downgrade=[
+            "ALTER TABLE " ++ i 
+            ++ "ADD COLUMN " ++ concat (intersperse ", ADD COLUMN " (map fst fetched)) ++ ";",
+            "INSERT INTO " ++ i ++ " ( " ++ concat (intersperse ", " (map fst fetched)) ++ " )" ++ " ( "
+            ++ "SELECT " ++ concat (intersperse ", " (map fst fetched)
+            ++ "FROM " ++ s
+            ++ "WHERE " ++ i ++ "." ++ getPK ++ " == " ++ s ++ "." ++ getPK
+            ++ ");",
+            "DROP TABLE " ++ s ++ ";"
+         ]}, env)
     where getPK :: Map String IColumn -> IColumn
           getPK = snd $ head $ filter ((k,v) -> Primary `elem` colmodICol v) (M.toList $ tableEnv env)
           fetched = map (\colString -> (colString, typeICol (fetchColumn colString))) ss
