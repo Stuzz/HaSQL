@@ -35,7 +35,7 @@ check = foldHasql checkAlgebra
     -- TODO: The last four types are not properly defined yet, maybe
   where
     checkAlgebra ::
-         HasqlAlgebra TypeEnvironment TableEnv (TableEnv -> TypeEnvironment) TTable TColumn ColumnModifier Type TStatement TExpression Operation Argument Lambda Operator
+         HasqlAlgebra TypeEnvironment TableEnv (TableEnv -> TypeEnvironment) TTable Column ColumnModifier Type TStatement TExpression Operation TArgument (Lambda,Type) Operator
     checkAlgebra =
       ( fHasql
       , fInit
@@ -53,10 +53,10 @@ check = foldHasql checkAlgebra
     fHasql tableEnv typeCheck = typeCheck tableEnv
     fInit tables = foldr (\(k, t) prev -> M.insert k t prev) M.empty tables
     fTable name columns =
-      (name, foldr (\(n, t, m) prev -> M.insert n (t, m) prev) M.empty columns)
+      (name, foldr (\(Column n t m) prev -> M.insert n (t, m) prev) M.empty columns)
     fCol name columnType modifiers
       | length modifiers == length (nub modifiers) =
-        (name, columnType, modifiers)
+        Column name columnType modifiers
       | otherwise = error "Duplicate column modifiers detected"
     fColmod = id
     fType = id
@@ -124,18 +124,24 @@ check = foldHasql checkAlgebra
         Nothing -> error ("Variable " ++ s ++ " not defined")
     operator1 :: Operator -> Operator
     operator1 = id
-    lamda1 :: TExpression -> TLambda
-    lamda1 expr env =
-      let (e, t) = expr env
+    lambda1 :: Expression -> (Lambda,Type)
+    lambda1 expr =
+      let (e, t) = eval expr
        in (Lambda e, t)
+
+    eval :: Expression -> (Expression, Type)
+    eval (Expr e1 op e2) = fExprOper (const (eval e1)) op (const (eval e2)) "placeholder"
+    eval (Conditional e1 e2 e3) = fExprCond (const (eval e1)) (const (eval e2)) (const (eval e3)) "placeholder"
+    eval (ConstString s) = (ConstString s, TypeString)
+    eval (ConstBool b) = (ConstBool b, TypeBool)
+    eval (ConstInt i) = (ConstInt i, TypeInt)
+
     exprarg :: TExpression -> TArgument
     exprarg expression env =
       let (e, t) = expression env
        in (ArgExpression e, t)
-    lamarg :: TLambda -> TArgument
-    lamarg lambda env =
-      let (l, t) = lambda env
-       in (ArgLambda l, t)
+    lamarg :: (Lambda,Type) -> TArgument
+    lamarg (l,t) env = (ArgLambda l, t)
     colarg :: Column -> TArgument
     colarg c env = (ArgColumn c, TypeString) -- String as placeholder "type"
     lsarg :: [String] -> TArgument

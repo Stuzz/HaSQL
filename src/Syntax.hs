@@ -144,7 +144,7 @@ data Type
   = TypeBool
   | TypeString
   | TypeInt
-  deriving (Show)
+  deriving (Eq, Show)
 
 data Operation
   = OperationAdd
