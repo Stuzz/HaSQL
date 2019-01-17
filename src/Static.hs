@@ -6,7 +6,6 @@ import Data.Maybe
 
 import Algebra
 import Syntax
-import Dynamic
 
 type TableEnv = M.Map String (M.Map String (Type, [ColumnModifier]))
 
@@ -20,7 +19,6 @@ data TypeEnvironment = TypeEnvironment
 type TExpression = TypeEnvironment -> (Expression, Type)
 
 type TArgument = TypeEnvironment -> (Argument, Type)
-
 type TLambda = TExpression -> (Lambda, Type)
 type TStatement = TypeEnvironment -> (Statement, TypeEnvironment)
 
@@ -78,7 +76,7 @@ check = foldHasql checkAlgebra
     int1 e env = (e, TypeInt)
     ident1 (Ident s) (tenv, venv) =
       case M.lookup s venv of
-        Just t -> (e, t)
+        Just t -> (s, t)
         Nothing -> error ("Variable " ++ s ++ " not defined")
     fExprOper expression1 operator expression2 env =
       case (operator, exprType) of
@@ -126,7 +124,7 @@ check = foldHasql checkAlgebra
     operator1 = id
 
     lamda1 :: TExpression -> TLambda
-    lamda1 expr env -> let (e, t) = expr env in (Lambda e, t)
+    lamda1 expr env = let (e, t) = expr env in (Lambda e, t)
 
     exprarg :: TExpression -> TArgument
     exprarg expression env = let (e, t) = expression env in (ArgExpression e, t)
@@ -134,42 +132,77 @@ check = foldHasql checkAlgebra
     lamarg lambda env = let (l, t) = lambda env in (ArgLambda l, t)
     colarg :: Column -> TArgument
     colarg c env = ArgColumn c
-    lsarg :: ArgStringList :: TArgument
-    lsarg asl env = ArgStringList als
+    lsarg :: [String] -> TArgument
+    lsarg asl env = let (a, t) = asl env in (ArgStringList a, t)
 
     operation1 :: Operation -> Operation
     operation1 = id
+    
     operstat :: Operation -> [TArgument] -> TStatement
     --add column (NOT TESTED)
-    operstat op [a1 , a2] env = do
-            let (tenv, venv) = env
-            let tableIdent = extractIdent (a1 env)
-            let column = extractColumn (a2 env)
+    operstat (OperationAdd) [a1 , a2] env = do
+      let TypeEnvironment {table = tenv, var = venv} = env
+      let (Ident tableIdent) = extractIdent (fst (a1 env))
+      let (Column n t1 mds) = extractColumn (fst (a2 env))
+      
+      case M.lookup tableIdent tenv of
+          (Just table_env) -> do
+              case (M.lookup n table_env) of
+                (Just _) -> error ("Column "++n++" does already exist in Table "++tableIdent)
+                Nothing -> do
+                  let newTenv = M.insert n (t1, mds) table_env in 
+                    (FunctionCall OperationAdd (map (\a -> fst (a env)) [a1, a2]), TypeEnvironment {var = venv, table = M.adjust (\_ -> newTenv) tableIdent tenv})
+          Nothing -> error ("Table "++tableIdent++" does not exist") 
 
-            case M.lookup tableIdent tenv of
-                (Just table_env) -> do
-                    let (Column n t1 mds, t2) = column
-                    case (M.lookup table_env) of
-                        Nothing -> let newTenv = M.insert n (t1, mds) table_env in (FunctionCall op [tableIdent, column], newTenv)
-                        Just t -> error ("Column "++n++" does already exist in Table "++table)
-                Nothing -> error ("Table "++table++" does not exist")
     --split table
-    -- operstat op [a1, a2, a3] env = do
-    --         let (tenv, venv) = env
-    --         let tableIdent = extractIdent (a1 env)
-    --         let newtablename = extractString (a2 env)
-    --         let stringlist = extractStringList (a3 env)
+    operstat (OperationSplit) [a1, a2, a3] env = do
+      let TypeEnvironment {table = tenv, var = venv} = env
+      let (Ident tableIdent) = extractIdent (fst (a1 env))
+      let newtablename = extractString (fst (a2 env))
+      let stringlist = extractStringList (fst (a3 env)) 
+      case M.lookup tableIdent tenv of
+          (Just table_env) -> do
+              case (M.lookup newtablename tenv) of
+                  Nothing -> do
+                      let newEnv = foldr (\column -> moveColumn tableIdent newtablename column) tenv stringlist in
+                        (FunctionCall OperationSplit (map (\a -> fst (a env)) [a1, a2, a3]), TypeEnvironment {var = venv, table = (M.insert newtablename M.empty newEnv)})                      
+                  Just t -> error ("Table "++newtablename++" does already exist")
+          Nothing -> error ("Table "++tableIdent++" does not exist") 
 
-    --         case M.lookup tableIdent tenv of
-    --             (Just table_env) -> do
-    --                 case (M.lookup newtablename tenv) of
-    --                     Nothing -> do
-    --                         let columnsExist = all (map (\name -> isJust(M.lookup name table_env)) stringlist)
-    --                         map (\column -> moveColumn tenv tableIdent newtablename column) stringlist
+    moveColumn :: String -> String -> String -> TableEnv -> TableEnv
+    moveColumn tfrom tto col tenv = do
+      let (Just tablefrom) = M.lookup tfrom tenv
+      let (Just tableto) = M.lookup tto tenv
+      case M.lookup col tablefrom of
+        (Just (t, mds)) -> 
+          case M.lookup col tableto of
+            Nothing -> do
+              let newEnv = M.adjust (\_ -> M.delete col tablefrom) tfrom tenv in 
+                M.adjust (\_ -> M.insert col (t, mds) tableto) tto newEnv                               
+            (Just _) -> error ("Column "++col++" does already exist in table "++tto)
+        Nothing -> error ("Column "++col++" does not exist in table "++tfrom)
+                  
 
-    --                     Just t -> error ("Table "++newtablename++" does already exist")
-    --             Nothing -> error ("Table "++table++" does not exist")
+extractIdent :: Argument -> Expression
+extractIdent (ArgExpression i@(Ident s)) = i
+extractIdent a = error ("Ident expected, " ++ show a ++ " given.")
 
-    --         where moveColumn tenv tfrom tto col =
-    --             let column = M.lookup col (M.lookup newTenv tfrom)
-    --             let newTenv = M.insert col (M.lookup tenv tto) in M.delete col (M.lookup newTenv tfrom)
+extractString :: Argument -> String
+extractString (ArgExpression (ConstString s)) = s
+extractString a = error ("ConstString expected, " ++ show a ++ " given.")
+
+extractIdents :: Argument -> [String]
+extractIdents (ArgStringList ss) = ss
+extractIdents a = error ("[String] expected, " ++ show a ++ " given.")
+
+extractLambda :: Argument -> Lambda
+extractLambda (ArgLambda l) = l
+extractLambda a = error ("Lambda expected, " ++ show a ++ " given.")
+
+extractColumn :: Argument -> Column
+extractColumn (ArgColumn c) = c
+extractColumn a = error ("Column expected, " ++ show a ++ " given.")
+
+extractStringList :: Argument -> [String]
+extractStringList (ArgStringList ss) = ss
+extractStringList a = error ("[String] expected, " ++ show a ++ " given.")
