@@ -38,8 +38,8 @@ example = Hasql init up
       Up
         [ FunctionCall
             OperationSplit
-            [ ArgExpression (Ident "Users")
+            [ ArgExpression (ConstString "Users")
             , ArgStringList ["FirstName"]
-            , ArgExpression (Ident "Names")
+            , ArgExpression (ConstString "Names")
             ]
         ]

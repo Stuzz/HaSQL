@@ -16,6 +16,9 @@ data Constant = BoolConst Bool
             | IntConst Int
             | StringConst String
 
+type IConstant = Environment -> Constant
+type IArgument = Environment -> Argument
+
 data IVar = IVar {
     nameIVar :: String,
     typeIVar :: Type,
@@ -45,16 +48,26 @@ generate h = foldHasql (hasql1, init1, table1,
             col1, colmod1, id, up1,
             (declstat, assstat, operstat),
             id,
-            (\(StringConst s) -> ArgExpression (ConstString s),
-                ArgLambda,
-                \icol -> ArgColumn (Column
-                (nameICol icol)
-                (typeICol icol)
-                (colmodICol icol)), ArgStringList),
+            (fArgExpr,
+                \l env -> ArgLambda l,
+                \icol env -> ArgColumn (Column
+                    (nameICol icol)
+                    (typeICol icol)
+                    (colmodICol icol)),
+                \ls env -> ArgStringList ls),
             undefined,
-            (undefined, undefined, undefined, undefined, undefined, StringConst),
+            (undefined, undefined, \val env -> StringConst val, \val env -> BoolConst val, \val env -> IntConst val, fExprIdent),
             id) h
 
+fArgExpr ::IConstant -> IArgument
+fArgExpr c env = ArgExpression $ case c env of
+                    BoolConst i -> ConstBool i
+                    IntConst i -> ConstInt i
+                    StringConst i -> ConstString i
+
+fExprIdent :: String -> IConstant
+fExprIdent i Environment{table = tenv, var = venv}
+    = valIVar $ fromJust $ M.lookup i venv
 
 hasql1 :: TableEnv -> Migration -> Code
 hasql1 i u = fst $ u (Environment { table = i, var = M.empty })
@@ -84,33 +97,36 @@ up1 ms env
                 in (codeConcat nextCode prevCode, nextEnv)
         initial = Code {upgrade = [], downgrade = []}
 
-declstat :: String -> Type -> Constant -> Migration
+declstat :: String -> Type -> IConstant -> Migration
 declstat s t constExpr env
     = (Code {upgrade = [], downgrade = []}, Environment { var = M.insert s
-        (IVar {nameIVar = s, typeIVar = t, valIVar = constExpr}) (var env), table = table env})
+        (IVar {nameIVar = s, typeIVar = t, valIVar = constExpr env}) (var env), table = table env})
 
-assstat :: String -> Constant -> Migration
+assstat :: String -> IConstant -> Migration
 assstat s c env
     = (Code {upgrade = [], downgrade = []}, Environment { var = M.update updateValue s (var env), table = table env })
     where
         updateValue IVar { nameIVar = n, typeIVar = t }
-            = Just $ IVar { nameIVar = n, typeIVar = t, valIVar = c }
+            = Just $ IVar { nameIVar = n, typeIVar = t, valIVar = c env }
 
-operstat :: Operation -> [Argument] -> Migration
-operstat OperationAdd args env = doOperationAdd env tableName columnName lambda
+operstat :: Operation -> [IArgument] -> Migration
+operstat OperationAdd iargs env = doOperationAdd env tableName columnName lambda
     where
+        args = map (\a -> a env) iargs
         tableName = extractString (args!!0)
         columnName = extractColumn (args!!1)
         lambda = extractLambda (args!!2)
-operstat OperationSplit args env = doOperationSplit env tableName columnNames newTableName
+operstat OperationSplit iargs env = doOperationSplit env tableName columnNames newTableName
     where
+        args = map (\a -> a env) iargs
         tableName = extractString (args!!0)
         columnNames = extractStringList (args!!1)
         newTableName = extractString (args!!2)
-operstat OperationDecouple args env = undefined
-operstat OperationNormalize args env = undefined
-operstat OperationRename args env = doOperationRename env tableName newTableName
+operstat OperationDecouple iargs env = undefined
+operstat OperationNormalize iargs env = undefined
+operstat OperationRename iargs env = doOperationRename env tableName newTableName
     where
+        args = map (\a -> a env) iargs
         tableName = extractString (args!!0)
         columnNames = extractStringList (args!!1)
         newTableName = extractString (args!!2)
