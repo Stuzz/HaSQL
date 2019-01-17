@@ -2,6 +2,8 @@ module Dynamic where
 
 import Algebra
 import qualified Data.Map as M
+import Syntax
+import Data.Maybe
 
 data IColumn = IColumn {
     nameICol :: String,
@@ -52,10 +54,10 @@ generate h = foldHasql generateAlgebra h
 hasql1 :: TableEnv -> Migration -> Code
 hasql1 i u = u (Environment { table = i, var = M.empty })
 
-init1 :: [(String, Map String IColumn)] -> TableEnv
+init1 :: [(String, M.Map String IColumn)] -> TableEnv
 init1 ts = foldr (\(k, icols) prev -> M.insert k icols prev) M.empty ts
 
-table1 :: String -> [IColumn] -> (String, Map String IColumn)
+table1 :: String -> [IColumn] -> (String, M.Map String IColumn)
 table1 s cs = (s, foldr (\c prev -> M.insert (nameICol c) c prev) M.empty cs)
 
 col1 :: String -> Type -> [ColumnModifier] -> IColumn
@@ -86,8 +88,8 @@ assstat :: String -> Constant -> Migration
 assstat s c env
     = ([], M.update updateValue s env)
     where
-        updateValue (IVar { nameIVar=n, typeIVar=t } )
-            = Just $ IVar { nameIVar=n, typeIVar=t, valueIVar=c }
+        updateValue (IVar { nameIVar = n, typeIVar = t })
+            = Just $ IVar { nameIVar = n, typeIVar = t, valIVar = c }
 
 operstat :: Operation -> [Argument] -> Migration
 operstat OperationAdd args env = doOperationAdd env tableName columnName lambda
@@ -108,16 +110,16 @@ operstat OperationRename args env = doOperationRename env tableName columnNames 
         columnNames = extractStringList (args!!1)
         newTableName = extractString (args!!2)
 
-doOperationAdd :: Environment -> Ident -> Column -> Lambda -> (Code, Environment)
+doOperationAdd :: Environment -> Expression -> Column -> Lambda -> (Code, Environment)
 doOperationAdd = undefined
 
-doOperationDecouple :: Environment -> Ident -> [String] -> (Code, Environment)
+doOperationDecouple :: Environment -> Expression -> [String] -> (Code, Environment)
 doOperationDecouple = undefined
 
-doOperationNormalize :: Environment -> Ident -> String -> [String] -> (Code, Environment)
+doOperationNormalize :: Environment -> Expression -> String -> [String] -> (Code, Environment)
 doOperationNormalize = undefined
 
-doOperationSplit :: Environment -> Ident -> [String] -> String -> (Code, Environment)
+doOperationSplit :: Environment -> Expression -> [String] -> String -> (Code, Environment)
 doOperationSplit env (Ident i) ss s
     = (Code 
         { upgrade=[
@@ -141,48 +143,48 @@ doOperationSplit env (Ident i) ss s
             ++ ");",
             "DROP TABLE " ++ s ++ ";"
          ]}, env)
-    where getPK :: Map String IColumn -> IColumn
-          getPK = snd $ head $ filter ((k,v) -> Primary `elem` colmodICol v) (M.toList $ tableEnv env)
+    where getPK :: IColumn
+          getPK = snd $ head $ filter (\(k,v) ->  elem Primary (colmodICol v)) (M.toList oldTableEnv)
           fetched = map (\colString -> (colString, typeICol (fetchColumn colString))) ss
-          oldTableEnv = tableEnv env
+          oldTableEnv = fromJust $ M.lookup i $ table env
           fetchColumn c = case M.lookup c oldTableEnv of
             Just icol -> icol
-            Nothing -> error "Splitting on nonexisting column."
+            Nothing -> error ("Splitting on nonexisting column.")
 
-doOperationRename :: Environment -> Ident -> String -> (Code, Environment)
+doOperationRename :: Environment -> Expression -> String -> (Code, Environment)
 doOperationRename env (Ident i) s
     = (Code { upgrade=["ALTER TABLE " ++ i ++ " RENAME TO " ++ s],
         downgrade=["ALTER TABLE " ++ s ++ " RENAME TO " ++ i] }, newEnv)
     where
-        oldTable = M.lookup i (tableEnv env)
-        removedTable = M.delete i (tableEnv env)
+        oldTable = M.lookup i (table env)
+        removedTable = M.delete i (table env)
         newEnv = case oldTable of
-            Just o -> (varEnv, M.insert s o removedTable)
-            Nothing -> error "The given table does not exist."
+            Just o -> Environment {var = var env, table = M.insert s o removedTable}
+            Nothing -> error ("The given table does not exist.")
 
-extractIdent :: Argument -> Ident
+extractIdent :: Argument -> Expression
 extractIdent (ArgExpression i@(Ident s)) = i
-extractIdent a = error "Ident expected, " ++ show a ++ " given."
+extractIdent a = error ("Ident expected, " ++ show a ++ " given.")
 
 extractString :: Argument -> String
 extractString (ArgExpression (ConstString s)) = s
-extractString a = error "ConstString expected, " ++ show a ++ " given."
+extractString a = error ("ConstString expected, " ++ show a ++ " given.")
 
 extractIdents :: Argument -> [String]
 extractIdents (ArgStringList ss) = ss
-extractIdents a = error "[String] expected, " ++ show a ++ " given."
+extractIdents a = error ("[String] expected, " ++ show a ++ " given.")
 
 extractLambda :: Argument -> Lambda
 extractLambda (ArgLambda l) = l
-extractLambda a = error "Lambda expected, " ++ show a ++ " given."
+extractLambda a = error ("Lambda expected, " ++ show a ++ " given.")
 
 extractColumn :: Argument -> Column
 extractColumn (ArgColumn c) = c
-extractColumn a = error "Column expected, " ++ show a ++ " given."
+extractColumn a = error ("Column expected, " ++ show a ++ " given.")
 
 extractStringList :: Argument -> [String]
 extractStringList (ArgStringList ss) = ss
-extractStringList a = error "[String] expected, " ++ show a ++ " given."
+extractStringList a = error ("[String] expected, " ++ show a ++ " given.")
 
 codeConcat :: Code -> Code -> Code
-codeConcat c1 c2 = Code { upgrade c1 ++ upgrade c2, downgrade c1 ++ downgrade c2 }
+codeConcat c1 c2 = Code { upgrade = upgrade c1 ++ upgrade c2, downgrade = downgrade c1 ++ downgrade c2 }

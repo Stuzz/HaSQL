@@ -2,10 +2,11 @@ module Lib
   ( parseSql
   ) where
 
-import Algebra
 import Lexer
 import Parser
+import Algebra
 import qualified Static
+import qualified Dynamic
 import Syntax
 
 -- | Transform a migration file into a list of SQL statements.
@@ -13,7 +14,10 @@ import Syntax
 -- TODO: This should of course return SQL files for both the up and the down
 --       migration.
 parseSql :: String -> [String]
-parseSql = const [] . Static.check . parse . scan
+parseSql input = do
+  let hasql = parse $ scan input
+  let checked = Static.check hasql
+  return Dynamic.generate hasql
 
 example :: Hasql
 example = Hasql init up
