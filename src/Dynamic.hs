@@ -44,7 +44,7 @@ data Code = Code {
 type Migration = Environment -> (Code, Environment)
 
 generate :: Hasql -> Code
-generate h = foldHasql (hasql1, init1, table1,
+generate = foldHasql (hasql1, init1, table1,
             col1, colmod1, id, up1,
             (declstat, assstat, operstat),
             id,
@@ -57,7 +57,7 @@ generate h = foldHasql (hasql1, init1, table1,
                 \ls env -> ArgStringList ls),
             undefined,
             (undefined, undefined, \val env -> StringConst val, \val env -> BoolConst val, \val env -> IntConst val, fExprIdent),
-            id) h
+            id)
 
 fArgExpr ::IConstant -> IArgument
 fArgExpr c env = ArgExpression $ case c env of
@@ -73,7 +73,7 @@ hasql1 :: TableEnv -> Migration -> Code
 hasql1 i u = fst $ u (Environment { table = i, var = M.empty })
 
 init1 :: [(String, M.Map String IColumn)] -> TableEnv
-init1 ts = foldr (\(k, icols) prev -> M.insert k icols prev) M.empty ts
+init1 = foldr (\(k, icols) prev -> M.insert k icols prev) M.empty
 
 table1 :: String -> [IColumn] -> (String, M.Map String IColumn)
 table1 s cs = (s, foldr (\c prev -> M.insert (nameICol c) c prev) M.empty cs)
@@ -89,8 +89,7 @@ up1 ms env
     = up' ms (initial, env)
     where
         up' :: [Migration] -> (Code, Environment) -> (Code, Environment)
-        up' [] acc = acc
-        up' (s:ss) acc = up' ss (process s acc)
+        up' ss acc = foldl (flip process) acc ss
         process :: Migration -> (Code, Environment) -> (Code, Environment)
         process current (prevCode, prevEnv)
             = let (nextCode, nextEnv) = current prevEnv
@@ -113,13 +112,13 @@ operstat :: Operation -> [IArgument] -> Migration
 operstat OperationAdd iargs env = doOperationAdd env tableName columnName lambda
     where
         args = map (\a -> a env) iargs
-        tableName = extractString (args!!0)
+        tableName = extractString (head args)
         columnName = extractColumn (args!!1)
         lambda = extractLambda (args!!2)
 operstat OperationSplit iargs env = doOperationSplit env tableName columnNames newTableName
     where
         args = map (\a -> a env) iargs
-        tableName = extractString (args!!0)
+        tableName = extractString (head args)
         columnNames = extractStringList (args!!1)
         newTableName = extractString (args!!2)
 operstat OperationDecouple iargs env = undefined
@@ -127,7 +126,7 @@ operstat OperationNormalize iargs env = undefined
 operstat OperationRename iargs env = doOperationRename env tableName newTableName
     where
         args = map (\a -> a env) iargs
-        tableName = extractString (args!!0)
+        tableName = extractString (head args)
         columnNames = extractStringList (args!!1)
         newTableName = extractString (args!!2)
 
@@ -135,7 +134,7 @@ getPK :: Environment -> String -> IColumn
 getPK env i = snd $ head $ filter (\(k,v) -> Primary `elem` colmodICol v) (M.toList (oldTableEnv env i))
 
 fetched :: Environment -> String -> [String] -> [(String, Type)]
-fetched env i ss = map (\colString -> (colString, typeICol (fetchColumn colString))) ss
+fetched env i = map (\colString -> (colString, typeICol (fetchColumn colString)))
     where
         fetchColumn :: String -> IColumn
         fetchColumn c = fromMaybe (error "Splitting on nonexisting column.") (M.lookup c (oldTableEnv env i))
@@ -186,7 +185,7 @@ doOperationDecouple env i ss
             nameInsert :: String -> String
             nameInsert x = intercalate x ss
             decoupledName :: String
-            decoupledName = i ++ "_decoupled" ++ (show $ count 0)
+            decoupledName = i ++ "_decoupled" ++ show (count 0)
             count :: Int -> Int
             count x = case M.lookup (i ++ "_decoupled"  ++ show x) (table env) of
                         Just _ -> count x + 1
