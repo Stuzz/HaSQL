@@ -37,6 +37,6 @@ example = Hasql init up
             OperationSplit
             [ ArgExpression (ConstString "Users")
             , ArgExpression (ConstString "Names")
-            , ArgStringList ["BigBoi"]
+            , ArgStringList ["FirstName"]
             ]
         ]
