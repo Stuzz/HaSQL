@@ -1,3 +1,5 @@
+{-# LANGUAGE ViewPatterns #-}
+
 module Static where
 
 import Data.List (nub)
@@ -16,6 +18,10 @@ data TypeEnvironment = TypeEnvironment
   , var :: VarEnv
   }
 
+type TTable = (String, M.Map String (Type, [ColumnModifier]))
+
+type TColumn = (String, Type, [ColumnModifier])
+
 type TExpression = TypeEnvironment -> (Expression, Type)
 
 type TArgument = TypeEnvironment -> (Argument, Type)
@@ -29,11 +35,7 @@ check = foldHasql checkAlgebra
     -- TODO: The last four types are not properly defined yet, maybe
   where
     checkAlgebra ::
-         HasqlAlgebra TypeEnvironment TableEnv (TableEnv -> TypeEnvironment) ( String
-                                                                             , M.Map String ( Type
-                                                                                            , [ColumnModifier])) ( String
-                                                                                                                 , Type
-                                                                                                                 , [ColumnModifier]) ColumnModifier Type (TableEnv -> VarEnv) TExpression Operation Argument Lambda Operator
+         HasqlAlgebra TypeEnvironment TableEnv (TableEnv -> TypeEnvironment) TTable TColumn ColumnModifier Type TStatement TExpression Operation Argument Lambda Operator
     checkAlgebra =
       ( fHasql
       , fInit
@@ -46,7 +48,7 @@ check = foldHasql checkAlgebra
       , operation1
       , (exprarg, lamarg, colarg, lsarg)
       , lambda1
-      , (fExprOper, condexpr, string1, bool1, int1, ident1)
+      , (fExprOper, fExprCond, fExprString, fExprBool, fExprInt, fExprIdent)
       , operator1)
     fHasql tableEnv typeCheck = typeCheck tableEnv
     fInit tables = foldr (\(k, t) prev -> M.insert k t prev) M.empty tables
@@ -63,22 +65,6 @@ check = foldHasql checkAlgebra
         { table = tableEnv
         , var = M.unions $ map (\f -> f tableEnv) statementFunctions
         }
-    condexpr condition true false env =
-      case condition env of
-        (c, TypeBool) -> do
-          let (tr, ttype) = true env
-          let (fa, ftype) = false env
-          case ftype == ttype of
-            True -> (Conditional c tr fa, ttype)
-            False -> error "The conditional branches did not have the same type"
-            _ -> error "Conditional was not a boolean"
-    string1 e env = (e, TypeString)
-    bool1 e env = (e, TypeBool)
-    int1 e env = (e, TypeInt)
-    ident1 (Ident s) (tenv, venv) =
-      case M.lookup s venv of
-        Just t -> (s, t)
-        Nothing -> error ("Variable " ++ s ++ " not defined")
     fExprOper expression1 operator expression2 env =
       case (operator, exprType) of
         (OperAdd, Just TypeInt) -> (Expr e1 OperAdd e2, TypeInt)
@@ -120,6 +106,22 @@ check = foldHasql checkAlgebra
           if e1type == e2type
             then Just e1type
             else Nothing
+    fExprCond fCondition fTrue fFalse env =
+      case fCondition env of
+        (c, TypeBool) ->
+          let (tr, ttype) = fTrue env
+              (fa, ftype) = fFalse env
+           in if ftype == ttype
+                then (Conditional c tr fa, ttype)
+                else error "The conditional branches did not have the same type"
+        _ -> error "Conditional was not a boolean"
+    fExprString s env = (ConstString s, TypeString)
+    fExprBool b env = (ConstBool b, TypeBool)
+    fExprInt i env = (ConstInt i, TypeInt)
+    fExprIdent s (var -> env) =
+      case M.lookup s env of
+        Just t -> (Ident s, t)
+        Nothing -> error ("Variable " ++ s ++ " not defined")
     operator1 :: Operator -> Operator
     operator1 = id
     lamda1 :: TExpression -> TLambda
