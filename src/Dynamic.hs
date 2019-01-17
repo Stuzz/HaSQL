@@ -128,7 +128,7 @@ oldTableEnv :: Environment -> String -> M.Map String IColumn
 oldTableEnv env i =  fromJust $ M.lookup i $ table env
 
 doOperationAdd :: Environment -> String -> Column -> Lambda -> (Code, Environment)
-doOperationAdd env c lambda 
+doOperationAdd env i c lambda
     = (
         Code {
             upgrade=[
@@ -141,8 +141,8 @@ doOperationAdd env c lambda
     , env)
 
 doOperationDecouple :: Environment -> String -> [String] -> (Code, Environment)
-doOperationDecouple env (Ident i) ss 
-    = (Code 
+doOperationDecouple env i ss
+    = (Code
         { upgrade=[
             "CREATE TABLE " ++ decoupledName ++ " ( "
             ++ nameICol columnPK ++ " " ++ show (typeICol columnPK) ++ " PRIMARY KEY NOT NULL,"
@@ -189,7 +189,7 @@ doOperationSplit env i ss s
             ++ ");",
             "INSERT INTO " ++ s ++ " ( "
             ++ "SELECT  " ++ nameICol columnPK ++ ", " ++ nameInsert ", "
-            ++ "FROM " ++ i + " "
+            ++ "FROM " ++ i ++ " "
             ++ ");",
             "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ nameInsert ", DROP COLUMN "  ++ ";"
         ],
@@ -198,7 +198,7 @@ doOperationSplit env i ss s
             ++ "ADD COLUMN " ++ nameInsert ", ADD COLUMN " ++ ";",
             "INSERT INTO " ++ i ++ " ( " ++ nameInsert ", " ++ " )" ++ " ( "
             ++ "SELECT " ++ nameInsert ", "
-            ++ "FROM " ++ s + " "
+            ++ "FROM " ++ s ++ " "
             ++ "WHERE " ++ i ++ "." ++ nameICol columnPK ++ " == " ++ s ++ "." ++ nameICol columnPK
             ++ ");",
             "DROP TABLE " ++ s ++ ";"

@@ -18,6 +18,8 @@ data TypeEnvironment = TypeEnvironment
   , var :: VarEnv
   }
 
+type TUp = (TableEnv -> TypeEnvironment)
+
 type TTable = (String, M.Map String (Type, [ColumnModifier]))
 
 type TColumn = (String, Type, [ColumnModifier])
@@ -28,14 +30,14 @@ type TArgument = TypeEnvironment -> (Argument, Type)
 
 type TLambda = TypeEnvironment -> (Lambda, Type)
 
-type TStatement = TypeEnvironment -> (Statement, TypeEnvironment)
+type TStatement = TypeEnvironment -> TypeEnvironment
 
 check :: Hasql -> TypeEnvironment
 check = foldHasql checkAlgebra
     -- TODO: The last four types are not properly defined yet, maybe
   where
     checkAlgebra ::
-         HasqlAlgebra TypeEnvironment TableEnv (TableEnv -> TypeEnvironment) TTable Column ColumnModifier Type TStatement TExpression Operation TArgument (Lambda,Type) Operator
+         HasqlAlgebra TypeEnvironment TableEnv TUp TTable Column ColumnModifier Type TStatement TExpression Operation TArgument (Lambda,Type) Operator
     checkAlgebra =
       ( fHasql
       , fInit
@@ -49,7 +51,7 @@ check = foldHasql checkAlgebra
       , (exprarg, lamarg, colarg, lsarg)
       , lambda1
       , (fExprOper, fExprCond, fExprString, fExprBool, fExprInt, fExprIdent)
-      , operator1)
+      , fOperator)
     fHasql tableEnv typeCheck = typeCheck tableEnv
     fInit tables = foldr (\(k, t) prev -> M.insert k t prev) M.empty tables
     fTable name columns =
@@ -61,10 +63,10 @@ check = foldHasql checkAlgebra
     fColmod = id
     fType = id
     fUp statementFunctions tableEnv =
-      TypeEnvironment
-        { table = tableEnv
-        , var = M.unions $ map (\f -> f tableEnv) statementFunctions
-        }
+      foldl
+        (\env f -> f env)
+        TypeEnvironment {table = tableEnv, var = M.empty}
+        statementFunctions
     fExprOper expression1 operator expression2 env =
       case (operator, exprType) of
         (OperAdd, Just TypeInt) -> (Expr e1 OperAdd e2, TypeInt)
@@ -122,12 +124,12 @@ check = foldHasql checkAlgebra
       case M.lookup s env of
         Just t -> (Ident s, t)
         Nothing -> error ("Variable " ++ s ++ " not defined")
-    operator1 :: Operator -> Operator
-    operator1 = id
+
+    fOperator :: Operator -> Operator
+    fOperator = id
     lambda1 :: Expression -> (Lambda,Type)
-    lambda1 expr =
-      let (e, t) = eval expr
-       in (Lambda e, t)
+    lambda1 expr = eval expr
+
 
     eval :: Expression -> (Expression, Type)
     eval (Expr e1 op e2) = fExprOper (const (eval e1)) op (const (eval e2)) "placeholder"
