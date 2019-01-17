@@ -44,7 +44,7 @@ data Code = Code {
 type Migration = Environment -> (Code, Environment)
 
 generate :: Hasql -> Code
-generate h = foldHasql (hasql1, init1, table1,
+generate = foldHasql (hasql1, init1, table1,
             col1, colmod1, id, up1,
             (declstat, assstat, operstat),
             id,
@@ -57,13 +57,19 @@ generate h = foldHasql (hasql1, init1, table1,
                 \ls env -> ArgStringList ls),
             undefined,
             (undefined, undefined, \val env -> StringConst val, \val env -> BoolConst val, \val env -> IntConst val, fExprIdent),
-            id) h
+            id)
 
 fArgExpr ::IConstant -> IArgument
 fArgExpr c env = ArgExpression $ case c env of
                     BoolConst i -> ConstBool i
                     IntConst i -> ConstInt i
                     StringConst i -> ConstString i
+
+fExprCond :: IConstant -> IConstant -> IConstant -> IConstant
+fExprCond b true false env = case b env of
+    ConstBool True -> true env
+    ConstBool False -> false env
+    _ -> error "Static checking error: invalid argument given to condition"
 
 fExprIdent :: String -> IConstant
 fExprIdent i Environment{table = tenv, var = venv}
@@ -138,7 +144,7 @@ fetched :: Environment -> String -> [String] -> [(String, Type)]
 fetched env i ss = map (\colString -> (colString, typeICol (fetchColumn colString))) ss
     where
         fetchColumn :: String -> IColumn
-        fetchColumn c = fromMaybe (error "Splitting on nonexisting column.") (M.lookup c (oldTableEnv env i))
+        fetchColumn c = fromMaybe (error "Static error: Splitting on nonexisting column.") (M.lookup c (oldTableEnv env i))
 
 oldTableEnv :: Environment -> String -> M.Map String IColumn
 oldTableEnv env i =  fromJust $ M.lookup i $ table env
@@ -239,27 +245,27 @@ doOperationRename env i s
 
 extractIdent :: Argument -> Expression
 extractIdent (ArgExpression i@(Ident s)) = i
-extractIdent a = error ("Ident expected, " ++ show a ++ " given.")
+extractIdent a = error ("Static error: Ident expected, " ++ show a ++ " given.")
 
 extractString :: Argument -> String
 extractString (ArgExpression (ConstString s)) = s
-extractString a = error ("ConstString expected, " ++ show a ++ " given.")
+extractString a = error ("Static error: ConstString expected, " ++ show a ++ " given.")
 
 extractIdents :: Argument -> [String]
 extractIdents (ArgStringList ss) = ss
-extractIdents a = error ("[String] expected, " ++ show a ++ " given.")
+extractIdents a = error ("Static error: [String] expected, " ++ show a ++ " given.")
 
 extractLambda :: Argument -> Lambda
 extractLambda (ArgLambda l) = l
-extractLambda a = error ("Lambda expected, " ++ show a ++ " given.")
+extractLambda a = error ("Static error: Lambda expected, " ++ show a ++ " given.")
 
 extractColumn :: Argument -> Column
 extractColumn (ArgColumn c) = c
-extractColumn a = error ("Column expected, " ++ show a ++ " given.")
+extractColumn a = error ("Static error: Column expected, " ++ show a ++ " given.")
 
 extractStringList :: Argument -> [String]
 extractStringList (ArgStringList ss) = ss
-extractStringList a = error ("[String] expected, " ++ show a ++ " given.")
+extractStringList a = error ("Static error: [String] expected, " ++ show a ++ " given.")
 
 codeConcat :: Code -> Code -> Code
 codeConcat c1 c2 = Code { upgrade = upgrade c1 ++ upgrade c2, downgrade = downgrade c1 ++ downgrade c2 }
