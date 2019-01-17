@@ -108,9 +108,6 @@ operstat OperationRename args env = doOperationRename env tableName newTableName
         columnNames = extractStringList (args!!1)
         newTableName = extractString (args!!2)
 
-doOperationAdd :: Environment -> Expression -> Column -> Lambda -> (Code, Environment)
-doOperationAdd = undefined
-
 getPK :: Environment -> String -> IColumn
 getPK env i = snd $ head $ filter (\(k,v) -> Primary `elem` colmodICol v) (M.toList (oldTableEnv env i))
 
@@ -123,6 +120,19 @@ fetched env i ss = map (\colString -> (colString, typeICol (fetchColumn colStrin
 oldTableEnv :: Environment -> String -> M.Map String IColumn
 oldTableEnv env i =  fromJust $ M.lookup i $ table env
 
+doOperationAdd :: Environment -> String -> Column -> Lambda -> (Code, Environment)
+doOperationAdd env c lambda 
+    = (
+        Code {
+            upgrade=[
+
+            ],
+            downgrade=[
+
+            ]
+        }
+    , env)
+
 doOperationDecouple :: Environment -> Expression -> [String] -> (Code, Environment)
 doOperationDecouple env (Ident i) ss 
     = (Code 
@@ -133,7 +143,7 @@ doOperationDecouple env (Ident i) ss
             ++ ");",
             "INSERT INTO " ++ decoupledName ++ " ( "
             ++ "SELECT  " ++ nameICol columnPK ++ ", " ++ nameInsert ", "
-            ++ "FROM " ++ i
+            ++ "FROM " ++ i ++ " "
             ++ ");",
             "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ nameInsert ", DROP COLUMN "  ++ ";"
         ], downgrade=[
@@ -141,7 +151,7 @@ doOperationDecouple env (Ident i) ss
             ++ "ADD COLUMN " ++ nameInsert ", ADD COLUMN " ++ ";",
             "INSERT INTO " ++ i ++ " ( " ++ nameInsert ", " ++ " )" ++ " ( "
             ++ "SELECT " ++ nameInsert ", "
-            ++ "FROM " ++ decoupledName
+            ++ "FROM " ++ decoupledName ++ " "
             ++ "WHERE " ++ i ++ "." ++ nameICol columnPK ++ " == " ++ decoupledName ++ "." ++ nameICol columnPK
             ++ ");",
             "DROP TABLE " ++ decoupledName ++ ";"
@@ -172,16 +182,16 @@ doOperationSplit env (Ident i) ss s
             ++ ");",
             "INSERT INTO " ++ s ++ " ( "
             ++ "SELECT  " ++ nameICol columnPK ++ ", " ++ nameInsert ", "
-            ++ "FROM " ++ i
+            ++ "FROM " ++ i + " "
             ++ ");",
             "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ nameInsert ", DROP COLUMN "  ++ ";"
         ],
          downgrade=[
-            "ALTER TABLE " ++ i
+            "ALTER TABLE " ++ i ++ " "
             ++ "ADD COLUMN " ++ nameInsert ", ADD COLUMN " ++ ";",
             "INSERT INTO " ++ i ++ " ( " ++ nameInsert ", " ++ " )" ++ " ( "
             ++ "SELECT " ++ nameInsert ", "
-            ++ "FROM " ++ s
+            ++ "FROM " ++ s + " "
             ++ "WHERE " ++ i ++ "." ++ nameICol columnPK ++ " == " ++ s ++ "." ++ nameICol columnPK
             ++ ");",
             "DROP TABLE " ++ s ++ ";"
