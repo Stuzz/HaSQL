@@ -259,31 +259,38 @@ doOperationNormalize env i s ss =
       "INSERT INTO " ++ s ++ " ( "
       ++ "SELECT " ++ nameInsert ", " 
       ++ "FROM " ++ i ++ " "
-      ++ "WHERE " ++ s ++ "." ++ "id == " ++ i ++ "."++ nameICol getPK env i 
+      ++ "WHERE " ++ s ++ "." ++ "id == " ++ i ++ "."++ nameICol (getPK env i) 
       ++ " );",
       -- Create column in previous table
       "ALTER TABLE " ++ i ++ " ADD COLUMN " ++ s ++ " INT",
-      -- Update reference to new table ??
-      "UPDATE " ++ i ++ " SET " ++ i ++ "." ++ s " = " ++ s ++ ".id"
+      -- Update reference to new table (not sure if this is correct)
+      "UPDATE " ++ i ++ " SET " ++ i ++ "." ++ s ++ " = " ++ s ++ ".id"
       ++ "FROM " ++ s ++ " " 
-      ++ "WHERE "   
-      ++  
-
+      ++ "WHERE " ++ intercalate "AND " (map (\(colString, _) -> concat [i, ".", colString, " == ", s, ".", colString]) (fetched env i ss)),
       -- Add foreign key constraint
-      "ALTER TABLE " ++ i ++ " ADD CONSTRAINT fk_" ++ i ++ "_" ++ s ++ " FOREIGN KEY (" ++ s ++ ") REFERENCES " ++ s ++ " (id);"
+      "ALTER TABLE " ++ i ++ " ADD CONSTRAINT fk_" ++ i ++ "_" ++ s ++ " FOREIGN KEY (" ++ s ++ ") REFERENCES " ++ s ++ " (id);",
       -- Drop the columns that we exported from the old tables
       "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ nameInsert ", DROP COLUMN " ++ ";"
 
     ]
       ,
       downgrade = [
-
+        -- Re-add the columns
+        "ALTER TABLE " ++ i ++ " ADD COLUMN " ++ nameInsert ", ADD COLUMN " ++ ";",
+        -- Insert the data
+        "INSERT INTO " ++ i ++ " ( "
+        ++ "SELECT " ++ nameInsert ", " ++ " "
+        ++ "FROM " ++ s ++ " " 
+        ++ "WHERE " ++ s ++ ".id == " ++ i ++ "." ++ s 
+        ++ ");",
+        -- Drop new table & column referencing it in old table
+        "DROP TABLE " ++ s ++ " CASCADE;"
       ] 
-  )
+    }
+  , env)
   where 
     nameInsert :: String -> String
     nameInsert x = intercalate x (map fst (fetched env i ss))
-})
 
 doOperationSplit ::
      Environment -> String -> [String] -> String -> (Code, Environment)
