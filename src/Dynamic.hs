@@ -247,7 +247,43 @@ doOperationDecouple env i ss =
 
 doOperationNormalize ::
      Environment -> String -> String -> [String] -> (Code, Environment)
-doOperationNormalize = undefined
+doOperationNormalize env i s ss =
+  ( Code 
+    { upgrade = [
+      -- Create new table
+      "CREATE TABLE " ++ s ++ " ( "
+      ++ "ID INT PRIMARY KEY NOT NULL "
+      ++ concatMap (\(colString, colType) -> concat [colString, " ", show colType, ","]) (fetched env i ss)
+      ++ " );",
+      -- Insert data into new table
+      "INSERT INTO " ++ s ++ " ( "
+      ++ "SELECT " ++ nameInsert ", " 
+      ++ "FROM " ++ i ++ " "
+      ++ "WHERE " ++ s ++ "." ++ "id == " ++ i ++ "."++ nameICol getPK env i 
+      ++ " );",
+      -- Create column in previous table
+      "ALTER TABLE " ++ i ++ " ADD COLUMN " ++ s ++ " INT",
+      -- Update reference to new table ??
+      "UPDATE " ++ i ++ " SET " ++ i ++ "." ++ s " = " ++ s ++ ".id"
+      ++ "FROM " ++ s ++ " " 
+      ++ "WHERE "   
+      ++  
+
+      -- Add foreign key constraint
+      "ALTER TABLE " ++ i ++ " ADD CONSTRAINT fk_" ++ i ++ "_" ++ s ++ " FOREIGN KEY (" ++ s ++ ") REFERENCES " ++ s ++ " (id);"
+      -- Drop the columns that we exported from the old tables
+      "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ nameInsert ", DROP COLUMN " ++ ";"
+
+    ]
+      ,
+      downgrade = [
+
+      ] 
+  )
+  where 
+    nameInsert :: String -> String
+    nameInsert x = intercalate x (map fst (fetched env i ss))
+})
 
 doOperationSplit ::
      Environment -> String -> [String] -> String -> (Code, Environment)
