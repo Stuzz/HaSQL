@@ -160,7 +160,11 @@ operstat OperationSplit iargs env =
     newTableName = extractString (args !! 1)
     columnNames = extractStringList (args !! 2)
 operstat OperationDecouple iargs env = undefined
-operstat OperationNormalize iargs env = undefined
+operstat OperationNormalize iargs env = doOperationNormalize env tableNameOld tableNameNew columnNames
+  where 
+    tableNameOld = extractString (head args)
+    tableNameNew = extractString (args !! 1)
+    columnNames = extractStringList (args !! 2)
 operstat OperationRename iargs env =
   doOperationRename env tableName newTableName
   where
@@ -284,9 +288,8 @@ doOperationNormalize env i s ss =
       ++ " );",
       -- Insert data into new table
       "INSERT INTO " ++ s ++ " ( "
-      ++ "SELECT " ++ nameInsert ", "
-      ++ "FROM " ++ i ++ " "
-      ++ "WHERE " ++ s ++ "." ++ "id == " ++ i ++ "."++ nameICol (getPK env i)
+      ++ "SELECT DISTINCT " ++ nameInsert ", "
+      ++ "FROM " ++ i
       ++ " );",
       -- Create column in previous table
       "ALTER TABLE " ++ i ++ " ADD COLUMN " ++ s ++ " INT",
@@ -298,7 +301,6 @@ doOperationNormalize env i s ss =
       "ALTER TABLE " ++ i ++ " ADD CONSTRAINT fk_" ++ i ++ "_" ++ s ++ " FOREIGN KEY (" ++ s ++ ") REFERENCES " ++ s ++ " (id);",
       -- Drop the columns that we exported from the old tables
       "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ nameInsert ", DROP COLUMN " ++ ";"
-
     ]
       ,
       downgrade = [
@@ -314,10 +316,21 @@ doOperationNormalize env i s ss =
         "DROP TABLE " ++ s ++ " CASCADE;"
       ]
     }
-  , env)
+  , Environment { table = addAndRemove $ table env, var = var env })
   where
     nameInsert :: String -> String
     nameInsert x = intercalate x (map fst (fetched env i ss))
+    addAndRemove :: TableEnv -> TableEnv
+    addAndRemove table = remove $ add table
+      where
+        remove :: TableEnv -> TableEnv
+        remove oldtable = foldr (\c t -> M.adjust (M.delete c) i t) oldtable ss
+        add :: TableEnv -> TableEnv
+        add oldTable = foldr (\c t -> M.adjust (M.insert c (getCol c)) s t) (M.insert s M.empty oldTable) ss
+        getCol :: String -> IColumn
+        getCol c = IColumn { nameICol = c, typeICol = typeICol old, colmodICol = colmodICol old }
+          where
+            old = fromJust $ M.lookup c (fetchTable env i)
 
 doOperationSplit ::
      Environment -> TableName -> [String] -> TableName -> (Code, Environment)
