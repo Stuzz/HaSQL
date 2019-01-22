@@ -265,7 +265,7 @@ doOperationDecouple env i ss =
         getCol :: String -> IColumn
         getCol c = IColumn { nameICol = c, typeICol = typeICol old, colmodICol = colmodICol old }
           where
-            old = fromJust $ M.lookup c (oldTableEnv env i)
+            old = fromJust $ M.lookup c (fetchTable env i)
     count :: Int -> Int
     count x =
       case M.lookup (i ++ "_decoupled" ++ show x) (table env) of
