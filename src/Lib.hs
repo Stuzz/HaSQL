@@ -68,11 +68,36 @@ exampleAdd = Hasql init up
             OperationAdd
             [ ArgExpression (ConstString "Users")
             , ArgColumn (Column "IsAdult" TypeString [])
-            , ArgLambda (Lambda (Expr (Ident "Age") OperGreaterEquals (Ident "AdultAge")))
+            , ArgLambda (Lambda
+                (Conditional (Expr (Ident "Age") OperGreaterEquals (Ident "AdultAge"))
+                  (ConstBool True) (ConstBool False)))
             ]
           , FunctionCall
             OperationRename
             [ ArgExpression (ConstString "Users")
             , ArgExpression (ConstString "Candidates")
+            ]
+        ]
+
+
+exampleNorm :: Hasql
+exampleNorm = Hasql init up
+  where
+    init =
+      Init
+        [ Table
+            "Users"
+            [ Column "ID" TypeInt [Primary]
+            , Column "FirstName" TypeString []
+            , Column "Age" TypeInt []
+            ]
+        ]
+    up =
+      Up
+        [ FunctionCall
+            OperationNormalize
+            [ ArgExpression (ConstString "Users")
+            , ArgExpression (ConstString "Ages")
+            , ArgStringList ["FirstName"]
             ]
         ]
