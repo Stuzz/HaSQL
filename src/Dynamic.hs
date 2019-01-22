@@ -229,50 +229,25 @@ doOperationDecouple :: Environment -> String -> [String] -> (Code, Environment)
 doOperationDecouple env i ss =
   ( Code
       { upgrade =
-          [ "CREATE TABLE " ++
-            decoupledName ++
-            " ( " ++
-            nameICol columnPK ++
-            " " ++
-            show (typeICol columnPK) ++
-            " PRIMARY KEY NOT NULL," ++
-            concatMap
-              (\(colString, colType) ->
-                 concat [colString, " ", show colType, ","])
-              (fetched env i ss) ++
-            ");"
-          , "INSERT INTO " ++
-            decoupledName ++
-            " ( " ++
-            "SELECT  " ++
-            nameICol columnPK ++
-            ", " ++ nameInsert ", " ++ "FROM " ++ i ++ " " ++ ");"
-          , "ALTER TABLE " ++
-            i ++ " DROP COLUMN " ++ nameInsert ", DROP COLUMN " ++ ";"
+          [ "CREATE TABLE " ++ decoupledName ++" ( " ++
+            nameICol columnPK ++ " " ++ show (typeICol columnPK) ++ " PRIMARY KEY NOT NULL,"
+            ++ concatMap (\(colString, colType) -> concat [colString, " ", show colType, ","]) (fetched env i ss)
+            ++ ");"
+          , "INSERT INTO " ++ decoupledName ++ " ( "
+            ++ "SELECT  "
+            ++ nameICol columnPK ++ ", " ++ nameInsert ", " ++ "FROM " ++ i ++ " " ++ ");"
+          , "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ nameInsert ", DROP COLUMN " ++ ";"
           ]
       , downgrade =
-          [ "ALTER TABLE " ++
-            i ++ "ADD COLUMN " ++ nameInsert ", ADD COLUMN " ++ ";"
-          , "INSERT INTO " ++
-            i ++
-            " ( " ++
-            nameInsert ", " ++
-            " )" ++
-            " ( " ++
-            "SELECT " ++
-            nameInsert ", " ++
-            "FROM " ++
-            decoupledName ++
-            " " ++
-            "WHERE " ++
-            i ++
-            "." ++
-            nameICol columnPK ++
-            " == " ++ decoupledName ++ "." ++ nameICol columnPK ++ ");"
+          [ "ALTER TABLE " ++ i ++ "ADD COLUMN " ++ nameInsert ", ADD COLUMN " ++ ";"
+          , "INSERT INTO " ++ i ++ " ( " ++ nameInsert ", " ++" )" ++ " ( "
+          ++ "SELECT " ++ nameInsert ", "
+          ++ "FROM " ++ decoupledName ++ " "
+          ++ "WHERE " ++ i ++ "." ++ nameICol columnPK ++ " == " ++ decoupledName ++ "." ++ nameICol columnPK ++ ");"
           , "DROP TABLE " ++ decoupledName ++ ";"
           ]
       }
-  , env)
+  , Environment { table = addAndRemove $ table env, var = var env })
   where
     columnPK :: IColumn
     columnPK = getPK env i
@@ -280,6 +255,17 @@ doOperationDecouple env i ss =
     nameInsert x = intercalate x ss
     decoupledName :: String
     decoupledName = i ++ "_decoupled" ++ show (count 0)
+    addAndRemove :: TableEnv -> TableEnv
+    addAndRemove table = remove $ add table
+      where
+        remove :: TableEnv -> TableEnv
+        remove oldtable = foldr (\c t -> M.adjust (M.delete c) i t) oldtable ss
+        add :: TableEnv -> TableEnv
+        add oldTable = foldr (\c t -> M.adjust (M.insert c (getCol c)) decoupledName t) (M.insert decoupledName M.empty oldTable) ss
+        getCol :: String -> IColumn
+        getCol c = IColumn { nameICol = c, typeICol = typeICol old, colmodICol = colmodICol old }
+          where
+            old = fromJust $ M.lookup c (oldTableEnv env i)
     count :: Int -> Int
     count x =
       case M.lookup (i ++ "_decoupled" ++ show x) (table env) of
