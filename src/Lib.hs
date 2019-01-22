@@ -6,8 +6,8 @@ import Debug.Trace
 
 import Algebra
 import qualified Dynamic
-import Lexer
-import Parser
+-- import Lexer
+-- import Parser
 import qualified Static
 import Syntax
 
@@ -23,6 +23,9 @@ compile :: Hasql -> Dynamic.Code
 compile hasql =
   let bigChungus = traceShowId $ Static.check hasql
    in const (Dynamic.generate hasql) $! bigChungus
+
+execDyn :: Hasql -> Dynamic.Code
+execDyn hasql = Dynamic.generate hasql
 
 example :: Hasql
 example = Hasql init up
@@ -43,5 +46,33 @@ example = Hasql init up
             [ ArgExpression (ConstString "Users")
             , ArgExpression (ConstString "Names")
             , ArgStringList ["FirstName"]
+            ]
+        ]
+
+exampleAdd :: Hasql
+exampleAdd = Hasql init up
+  where
+    init =
+      Init
+        [ Table
+            "Users"
+            [ Column "ID" TypeInt [Primary]
+            , Column "FirstName" TypeString []
+            , Column "Age" TypeInt []
+            ]
+        ]
+    up =
+      Up
+        [ Declaration "AdultAge" TypeInt (ConstInt 18)
+          , FunctionCall
+            OperationAdd
+            [ ArgExpression (ConstString "Users")
+            , ArgColumn (Column "IsAdult" TypeString [])
+            , ArgLambda (Lambda (Expr (Ident "Age") OperGreaterEquals (Ident "AdultAge")))
+            ]
+          , FunctionCall
+            OperationRename
+            [ ArgExpression (ConstString "Users")
+            , ArgExpression (ConstString "Candidates")
             ]
         ]

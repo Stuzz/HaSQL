@@ -40,9 +40,17 @@ data Environment = Environment
 data Code = Code
   { upgrade :: [String]
   , downgrade :: [String]
-  } deriving (Show)
+  }
+
+instance Show Code where
+  show Code {upgrade = u, downgrade = d}
+    = concat ["-- Upgrade \n", intercalate "\n" u,
+              "\n-- Downgrade \n", intercalate "\n" d]
+
 
 type Migration = Environment -> (Code, Environment)
+
+type TableName = String
 
 generate :: Hasql -> Code
 generate =
@@ -61,7 +69,7 @@ generate =
       , \icol env ->
           ArgColumn (Column (nameICol icol) (typeICol icol) (colmodICol icol))
       , \ls env -> ArgStringList ls)
-    , undefined
+    , Lambda
     , ( undefined
       , fExprCond
       , \val env -> StringConst val
@@ -138,11 +146,11 @@ assstat s c env =
       Just $ IVar {nameIVar = n, typeIVar = t, valIVar = c env}
 
 operstat :: Operation -> [IArgument] -> Migration
-operstat OperationAdd iargs env = doOperationAdd env tableName columnName lambda
+operstat OperationAdd iargs env = doOperationAdd env tableName column lambda
   where
     args = map (\a -> a env) iargs
     tableName = extractString (head args)
-    columnName = extractColumn (args !! 1)
+    column = extractColumn (args !! 1)
     lambda = extractLambda (args !! 2)
 operstat OperationSplit iargs env =
   doOperationSplit env tableName columnNames newTableName
@@ -158,14 +166,13 @@ operstat OperationRename iargs env =
   where
     args = map (\a -> a env) iargs
     tableName = extractString (head args)
-    columnNames = extractStringList (args !! 1)
-    newTableName = extractString (args !! 2)
+    newTableName = extractString (args !! 1)
 
 getPK :: Environment -> String -> IColumn
 getPK env i =
   snd $
   head $
-  filter (\(k, v) -> Primary `elem` colmodICol v) (M.toList (oldTableEnv env i))
+  filter (\(k, v) -> Primary `elem` colmodICol v) (M.toList (fetchTable env i))
 
 fetched :: Environment -> String -> [String] -> [(String, Type)]
 fetched env i =
@@ -175,14 +182,48 @@ fetched env i =
     fetchColumn c =
       fromMaybe
         (error "Static error: Splitting on nonexisting column.")
-        (M.lookup c (oldTableEnv env i))
+        (M.lookup c (fetchTable env i))
 
-oldTableEnv :: Environment -> String -> M.Map String IColumn
-oldTableEnv env i = fromJust $ M.lookup i $ table env
+fetchTable :: Environment -> TableName -> M.Map String IColumn
+fetchTable env s = fromJust $ M.lookup s $ table env
 
 doOperationAdd ::
-     Environment -> String -> Column -> Lambda -> (Code, Environment)
-doOperationAdd env i c lambda = (Code {upgrade = [], downgrade = []}, env)
+     Environment -> TableName -> IColumn -> Lambda -> (Code, Environment)
+doOperationAdd env i c lambda =
+  ( Code
+      { upgrade =
+          [ "ALTER TABLE " ++ i ++
+                " ADD COLUMN " ++ nameICol c ++ " " ++
+                (typeTranslate $ typeICol c) ++ ";\n",
+            "UPDATE " ++ i ++ " " ++
+                "SET " ++ nameICol c ++ " = " ++ translateLambda i lambda env ++ ";\n"
+          ]
+      , downgrade =
+          [
+            "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ nameICol c ++ ";\n"
+          ]
+      },
+  Environment { table = M.adjust (\t -> M.insert (nameICol c) c t) i (table env), var = var env})
+
+translateLambda :: TableName -> Lambda -> Environment -> String
+translateLambda t (Lambda e) env
+    = subTranslate' e env
+    where
+      subTranslate' (Expr e1 o e2) env =
+          concat [subTranslate' e1 env, " ", operatorTranslate o, " ", subTranslate' e2 env]
+      subTranslate' (Conditional e1 e2 e3) env =
+          concat ["CASE WHEN ",
+                subTranslate' e1 env, " THEN ", subTranslate' e2 env,
+                " ELSE ", subTranslate' e3 env," END"]
+      subTranslate' (ConstString s) env = constantTranslate $ StringConst s
+      subTranslate' (ConstBool b) env = constantTranslate $ BoolConst b
+      subTranslate' (ConstInt i) env = constantTranslate $ IntConst i
+      subTranslate' (Ident s) env = case M.lookup s $ var env of
+          Just c -> constantTranslate $ valIVar c
+          Nothing -> if M.member s $ fetchTable env t
+            then s
+            else error "Static error: given column does not exist"
+      subTranslate' (Undefined) env = error "Undefined given inside of lambda"
 
 doOperationDecouple :: Environment -> String -> [String] -> (Code, Environment)
 doOperationDecouple env i ss =
@@ -246,9 +287,9 @@ doOperationDecouple env i ss =
         Nothing -> x
 
 doOperationNormalize ::
-     Environment -> String -> String -> [String] -> (Code, Environment)
+     Environment -> TableName -> TableName -> [String] -> (Code, Environment)
 doOperationNormalize env i s ss =
-  ( Code 
+  ( Code
     { upgrade = [
       -- Create new table
       "CREATE TABLE " ++ s ++ " ( "
@@ -257,15 +298,15 @@ doOperationNormalize env i s ss =
       ++ " );",
       -- Insert data into new table
       "INSERT INTO " ++ s ++ " ( "
-      ++ "SELECT " ++ nameInsert ", " 
+      ++ "SELECT " ++ nameInsert ", "
       ++ "FROM " ++ i ++ " "
-      ++ "WHERE " ++ s ++ "." ++ "id == " ++ i ++ "."++ nameICol (getPK env i) 
+      ++ "WHERE " ++ s ++ "." ++ "id == " ++ i ++ "."++ nameICol (getPK env i)
       ++ " );",
       -- Create column in previous table
       "ALTER TABLE " ++ i ++ " ADD COLUMN " ++ s ++ " INT",
       -- Update reference to new table (not sure if this is correct)
       "UPDATE " ++ i ++ " SET " ++ i ++ "." ++ s ++ " = " ++ s ++ ".id"
-      ++ "FROM " ++ s ++ " " 
+      ++ "FROM " ++ s ++ " "
       ++ "WHERE " ++ intercalate "AND " (map (\(colString, _) -> concat [i, ".", colString, " == ", s, ".", colString]) (fetched env i ss)),
       -- Add foreign key constraint
       "ALTER TABLE " ++ i ++ " ADD CONSTRAINT fk_" ++ i ++ "_" ++ s ++ " FOREIGN KEY (" ++ s ++ ") REFERENCES " ++ s ++ " (id);",
@@ -280,20 +321,20 @@ doOperationNormalize env i s ss =
         -- Insert the data
         "INSERT INTO " ++ i ++ " ( "
         ++ "SELECT " ++ nameInsert ", " ++ " "
-        ++ "FROM " ++ s ++ " " 
-        ++ "WHERE " ++ s ++ ".id == " ++ i ++ "." ++ s 
+        ++ "FROM " ++ s ++ " "
+        ++ "WHERE " ++ s ++ ".id == " ++ i ++ "." ++ s
         ++ ");",
         -- Drop new table & column referencing it in old table
         "DROP TABLE " ++ s ++ " CASCADE;"
-      ] 
+      ]
     }
   , env)
-  where 
+  where
     nameInsert :: String -> String
     nameInsert x = intercalate x (map fst (fetched env i ss))
 
 doOperationSplit ::
-     Environment -> String -> [String] -> String -> (Code, Environment)
+     Environment -> TableName -> [String] -> TableName -> (Code, Environment)
 doOperationSplit env i ss s =
   ( Code
       { upgrade =
@@ -346,7 +387,7 @@ doOperationSplit env i ss s =
     nameInsert :: String -> String
     nameInsert x = intercalate x (map fst (fetched env i ss))
 
-doOperationRename :: Environment -> String -> String -> (Code, Environment)
+doOperationRename :: Environment -> TableName -> TableName -> (Code, Environment)
 doOperationRename env i s =
   ( Code
       { upgrade = ["ALTER TABLE " ++ i ++ " RENAME TO " ++ s]
@@ -380,8 +421,11 @@ extractLambda (ArgLambda l) = l
 extractLambda a =
   error ("Static error: Lambda expected, " ++ show a ++ " given.")
 
-extractColumn :: Argument -> Column
-extractColumn (ArgColumn c) = c
+extractColumn :: Argument -> IColumn
+extractColumn (ArgColumn (Column s t cms))
+  = IColumn { nameICol = s
+    , typeICol = t
+    , colmodICol = cms }
 extractColumn a =
   error ("Static error: Column expected, " ++ show a ++ " given.")
 
@@ -396,3 +440,26 @@ codeConcat c1 c2 =
     { upgrade = upgrade c1 ++ upgrade c2
     , downgrade = downgrade c1 ++ downgrade c2
     }
+
+typeTranslate :: Type -> String
+typeTranslate TypeBool = "boolean"
+typeTranslate TypeString = "varchar"
+typeTranslate TypeInt = "integer"
+
+constantTranslate :: Constant -> String
+constantTranslate (BoolConst x) = show x
+constantTranslate (IntConst x) = show x
+constantTranslate (StringConst x) = x
+
+operatorTranslate :: Operator -> String
+operatorTranslate OperAdd = "+"
+operatorTranslate OperSubtract = "-"
+operatorTranslate OperMultiply = "*"
+operatorTranslate OperDivide = "/"
+operatorTranslate OperConcatenate = "||"
+operatorTranslate OperEquals = "="
+operatorTranslate OperNotEquals = "!="
+operatorTranslate OperLesserThan = "<"
+operatorTranslate OperLesserEquals =  "<="
+operatorTranslate OperGreaterThan =  ">"
+operatorTranslate OperGreaterEquals =  ">="
