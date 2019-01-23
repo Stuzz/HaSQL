@@ -72,7 +72,7 @@ exampleAdd = Hasql init up
                 (Conditional (Expr (Ident "Age") OperGreaterEquals (Ident "AdultAge"))
                   (ConstBool True) (ConstBool False)))
             ]
-          , Declaration "TeenAge" TypeInt (Expr (Ident "AdultAge") OperSubtract (ConstInt 5))
+          , Declaration "TeenAge" TypeInt (Expr (Ident "AdultAge") OperConcatenate (ConstInt 5))
           , FunctionCall
             OperationAdd
             [ ArgExpression (ConstString "Users")

@@ -474,5 +474,7 @@ doOperator o (IntConst i1) (IntConst i2) = doOp' o i1 i2
     doOp' OperLesserEquals i1 i2 = BoolConst (i1 <= i2)
     doOp' OperGreaterThan i1 i2 = BoolConst (i1 > i2)
     doOp' OperGreaterEquals i1 i2 = BoolConst (i1 >= i2)
+    doOp' o c1 c2 = error $ concat ["Static error: operator ",
+      show o, " not supported for ", show (IntConst c1), " and ", show (IntConst c2), "."]
 doOperator o c1 c2 = error $ concat ["Static error: operator ",
     show o, " not supported for ", show c1, " and ", show c2, "."]
