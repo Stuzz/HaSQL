@@ -168,7 +168,12 @@ operstat OperationSplit iargs env =
     newTableName = extractString (args !! 1)
     columnNames = extractStringList (args !! 2)
 operstat OperationDecouple iargs env = undefined
-operstat OperationNormalize iargs env = undefined
+operstat OperationNormalize iargs env = doOperationNormalize env tableNameOld tableNameNew columnNames
+  where 
+    args = map (\a -> a env) iargs
+    tableNameOld = extractString (head args)
+    tableNameNew = extractString (args !! 1)
+    columnNames = extractStringList (args !! 2)
 operstat OperationRename iargs env =
   doOperationRename env tableName newTableName
   where
@@ -239,7 +244,7 @@ doOperationDecouple env i ss =
       { upgrade =
           [ "CREATE TABLE " ++ decoupledName ++" ( " ++
             nameICol columnPK ++ " " ++ show (typeICol columnPK) ++ " PRIMARY KEY NOT NULL,"
-            ++ concatMap (\(colString, colType) -> concat [colString, " ", show colType, ","]) (fetched env i ss)
+            ++ concatMap (\(colString, colType) -> concat [colString, " ", typeTranslate colType, ","]) (fetched env i ss)
             ++ ");"
           , "INSERT INTO " ++ decoupledName ++ " ( "
             ++ "SELECT  "
@@ -247,7 +252,7 @@ doOperationDecouple env i ss =
           , "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ nameInsert ", DROP COLUMN " ++ ";"
           ]
       , downgrade =
-          [ "ALTER TABLE " ++ i ++ "ADD COLUMN " ++ nameInsert ", ADD COLUMN " ++ ";"
+          [ "ALTER TABLE " ++ i ++ "ADD COLUMN " ++ nameTypeInsert ", ADD COLUMN " ++ ";"
           , "INSERT INTO " ++ i ++ " ( " ++ nameInsert ", " ++" )" ++ " ( "
           ++ "SELECT " ++ nameInsert ", "
           ++ "FROM " ++ decoupledName ++ " "
@@ -261,6 +266,11 @@ doOperationDecouple env i ss =
     columnPK = getPK env i
     nameInsert :: String -> String
     nameInsert x = intercalate x ss
+    nameTypeInsert :: String -> String
+    nameTypeInsert x = intercalate x (map prt (fetched env i ss))
+      where       
+        prt :: (String, Type) -> String
+        prt (s, t) = s ++ " " ++ typeTranslate t
     decoupledName :: String
     decoupledName = i ++ "_decoupled" ++ show (count 0)
     addAndRemove :: TableEnv -> TableEnv
@@ -287,17 +297,16 @@ doOperationNormalize env i s ss =
     { upgrade = [
       -- Create new table
       "CREATE TABLE " ++ s ++ " ( "
-      ++ "ID INT PRIMARY KEY NOT NULL "
-      ++ concatMap (\(colString, colType) -> concat [colString, " ", show colType, ","]) (fetched env i ss)
+      ++ "ID INT PRIMARY KEY NOT NULL, "
+      ++ concatMap (\(colString, colType) -> concat [colString, " ", typeTranslate colType, ","]) (fetched env i ss)
       ++ " );",
       -- Insert data into new table
       "INSERT INTO " ++ s ++ " ( "
-      ++ "SELECT " ++ nameInsert ", "
-      ++ "FROM " ++ i ++ " "
-      ++ "WHERE " ++ s ++ "." ++ "id == " ++ i ++ "."++ nameICol (getPK env i)
+      ++ "SELECT DISTINCT " ++ nameInsert ", " ++ " "
+      ++ "FROM " ++ i
       ++ " );",
       -- Create column in previous table
-      "ALTER TABLE " ++ i ++ " ADD COLUMN " ++ s ++ " INT",
+      "ALTER TABLE " ++ i ++ " ADD COLUMN " ++ s ++ " INTEGER",
       -- Update reference to new table (not sure if this is correct)
       "UPDATE " ++ i ++ " SET " ++ i ++ "." ++ s ++ " = " ++ s ++ ".id"
       ++ "FROM " ++ s ++ " "
@@ -306,7 +315,6 @@ doOperationNormalize env i s ss =
       "ALTER TABLE " ++ i ++ " ADD CONSTRAINT fk_" ++ i ++ "_" ++ s ++ " FOREIGN KEY (" ++ s ++ ") REFERENCES " ++ s ++ " (id);",
       -- Drop the columns that we exported from the old tables
       "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ nameInsert ", DROP COLUMN " ++ ";"
-
     ]
       ,
       downgrade = [
@@ -322,10 +330,21 @@ doOperationNormalize env i s ss =
         "DROP TABLE " ++ s ++ " CASCADE;"
       ]
     }
-  , env)
+  , Environment { table = addAndRemove $ table env, var = var env })
   where
     nameInsert :: String -> String
     nameInsert x = intercalate x (map fst (fetched env i ss))
+    addAndRemove :: TableEnv -> TableEnv
+    addAndRemove table = remove $ add table
+      where
+        remove :: TableEnv -> TableEnv
+        remove oldtable = foldr (\c t -> M.adjust (M.delete c) i t) oldtable ss
+        add :: TableEnv -> TableEnv
+        add oldTable = foldr (\c t -> M.adjust (M.insert c (getCol c)) s t) (M.insert s M.empty oldTable) ss
+        getCol :: String -> IColumn
+        getCol c = IColumn { nameICol = c, typeICol = typeICol old, colmodICol = colmodICol old }
+          where
+            old = fromJust $ M.lookup c (fetchTable env i)
 
 doOperationSplit ::
      Environment -> TableName -> [String] -> TableName -> (Code, Environment)
@@ -337,25 +356,20 @@ doOperationSplit env i ss s =
             " ( " ++
             nameICol columnPK ++
             " " ++
-            show (typeICol columnPK) ++
-            " PRIMARY KEY NOT NULL," ++
-            concatMap
-              (\(colString, colType) ->
-                 concat [colString, " ", show colType, ","])
-              (fetched env i ss) ++
+            typeTranslate (typeICol columnPK) ++
+            " PRIMARY KEY NOT NULL, " ++
+            nameTypeInsert ", " ++
             ");"
           , "INSERT INTO " ++
             s ++
             " ( " ++
-            "SELECT  " ++
+            "SELECT " ++
             nameICol columnPK ++
-            ", " ++ nameInsert ", " ++ "FROM " ++ i ++ " " ++ ");"
-          , "ALTER TABLE " ++
-            i ++ " DROP COLUMN " ++ nameInsert ", DROP COLUMN " ++ ";"
+            ", " ++ nameInsert ", " ++ " FROM " ++ i ++ " " ++ ");"
+          , "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ nameInsert ", DROP COLUMN " ++ ";"
           ]
       , downgrade =
-          [ "ALTER TABLE " ++
-            i ++ " " ++ "ADD COLUMN " ++ nameInsert ", ADD COLUMN " ++ ";"
+          [ "ALTER TABLE " ++ i ++ " " ++ "ADD COLUMN " ++ nameTypeInsert ", ADD COLUMN " ++ ";"
           , "INSERT INTO " ++
             i ++
             " ( " ++
@@ -379,7 +393,13 @@ doOperationSplit env i ss s =
     columnPK :: IColumn
     columnPK = getPK env i
     nameInsert :: String -> String
-    nameInsert x = intercalate x (map fst (fetched env i ss))
+    nameInsert x = intercalate x ss
+    nameTypeInsert :: String -> String
+    nameTypeInsert x = intercalate x (map prt (fetched env i ss))
+      where       
+        prt :: (String, Type) -> String
+        prt (s, t) = s ++ " " ++ typeTranslate t
+    
 
 doOperationRename :: Environment -> TableName -> TableName -> (Code, Environment)
 doOperationRename env i s =
