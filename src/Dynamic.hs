@@ -16,6 +16,7 @@ data Constant
   = BoolConst Bool
   | IntConst Int
   | StringConst String
+  deriving (Show, Eq)
 
 type IConstant = Environment -> Constant
 
@@ -70,7 +71,7 @@ generate =
           ArgColumn (Column (nameICol icol) (typeICol icol) (colmodICol icol))
       , \ls env -> ArgStringList ls)
     , Lambda
-    , ( undefined
+    , ( fExprOper
       , fExprCond
       , \val env -> StringConst val
       , \val env -> BoolConst val
@@ -87,6 +88,13 @@ convConstToExpr c =
     BoolConst i -> ConstBool i
     IntConst i -> ConstInt i
     StringConst i -> ConstString i
+
+fExprOper :: IConstant -> Operator -> IConstant -> IConstant
+fExprOper e1 o e2 env = doOperator o expr1 expr2
+  where
+    expr1 = e1 env
+    expr2 = e2 env
+
 
 fExprCond :: IConstant -> IConstant -> IConstant -> IConstant
 fExprCond b true false env =
@@ -143,7 +151,7 @@ assstat s c env =
   , Environment {var = M.update updateValue s (var env), table = table env})
   where
     updateValue IVar {nameIVar = n, typeIVar = t} =
-      Just $ IVar {nameIVar = n, typeIVar = t, valIVar = c env}
+      Just IVar {nameIVar = n, typeIVar = t, valIVar = c env}
 
 operstat :: Operation -> [IArgument] -> Migration
 operstat OperationAdd iargs env = doOperationAdd env tableName column lambda
@@ -194,7 +202,7 @@ doOperationAdd env i c lambda =
       { upgrade =
           [ "ALTER TABLE " ++ i ++
                 " ADD COLUMN " ++ nameICol c ++ " " ++
-                (typeTranslate $ typeICol c) ++ ";\n",
+                typeTranslate (typeICol c) ++ ";\n",
             "UPDATE " ++ i ++ " " ++
                 "SET " ++ nameICol c ++ " = " ++ translateLambda i lambda env ++ ";\n"
           ]
@@ -203,7 +211,7 @@ doOperationAdd env i c lambda =
             "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ nameICol c ++ ";\n"
           ]
       },
-  Environment { table = M.adjust (\t -> M.insert (nameICol c) c t) i (table env), var = var env})
+  Environment { table = M.adjust (M.insert (nameICol c) c) i (table env), var = var env})
 
 translateLambda :: TableName -> Lambda -> Environment -> String
 translateLambda t (Lambda e) env
@@ -223,7 +231,7 @@ translateLambda t (Lambda e) env
           Nothing -> if M.member s $ fetchTable env t
             then s
             else error "Static error: given column does not exist"
-      subTranslate' (Undefined) env = error "Undefined given inside of lambda"
+      subTranslate' Undefined env = error "Undefined given inside of lambda"
 
 doOperationDecouple :: Environment -> String -> [String] -> (Code, Environment)
 doOperationDecouple env i ss =
@@ -423,7 +431,7 @@ extractStringList a =
 codeConcat :: Code -> Code -> Code
 codeConcat c1 c2 =
   Code
-    { upgrade = upgrade c1 ++ upgrade c2
+    { upgrade = upgrade c2 ++ upgrade c1
     , downgrade = downgrade c1 ++ downgrade c2
     }
 
@@ -449,3 +457,22 @@ operatorTranslate OperLesserThan = "<"
 operatorTranslate OperLesserEquals =  "<="
 operatorTranslate OperGreaterThan =  ">"
 operatorTranslate OperGreaterEquals =  ">="
+
+doOperator :: Operator -> Constant -> Constant -> Constant
+doOperator OperConcatenate (StringConst s1) (StringConst s2)
+    = StringConst (s1 ++ s2)
+doOperator OperEquals c1 c2 = BoolConst $ c1 == c2
+doOperator OperNotEquals c1 c2 = BoolConst $ c1 /= c2
+doOperator o (IntConst i1) (IntConst i2) = doOp' o i1 i2
+  where
+    doOp' :: Operator -> Int -> Int -> Constant
+    doOp' OperAdd i1 i2 = IntConst (i1 + i2)
+    doOp' OperSubtract i1 i2 = IntConst (i1 - i2)
+    doOp' OperMultiply i1 i2 = IntConst (i1 * i2)
+    doOp' OperDivide i1 i2 = IntConst $ quot i1 i2
+    doOp' OperLesserThan i1 i2 = BoolConst (i1 < i2)
+    doOp' OperLesserEquals i1 i2 = BoolConst (i1 <= i2)
+    doOp' OperGreaterThan i1 i2 = BoolConst (i1 > i2)
+    doOp' OperGreaterEquals i1 i2 = BoolConst (i1 >= i2)
+doOperator o c1 c2 = error $ concat ["Static error: operator ",
+    show o, " not supported for ", show c1, " and ", show c2, "."]
