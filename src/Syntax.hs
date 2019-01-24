@@ -121,9 +121,6 @@ data Expression
   | ConstInt Int
   -- | A table or column identifier.
   | Ident String
-  -- | A variable that has not been assigned a value yet. Basically a null
-  -- pointer without calling it a null pointer, genius!
-  | Undefined
   deriving (Show)
 
 data Operator

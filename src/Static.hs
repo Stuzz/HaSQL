@@ -192,23 +192,22 @@ check = foldHasql checkAlgebra
       let tableIdent = extractString (fst (a1 env))
       let (Column n t1 mds) = extractColumn (fst (a2 env))
       let (Lambda expr) = extractLambda (fst (a3 env))
-      let (l,t) = extractLambdaType expr tableIdent env
-      if (t == t1) then 
-        case M.lookup tableIdent tenv of
-          (Just table_env) ->
-            case M.lookup n table_env of
-              (Just _) ->
-                error
-                  ("Column " ++ n ++ " does already exist in Table " ++ tableIdent)
-              Nothing ->
+      case M.lookup tableIdent tenv of
+        (Just table_env) ->
+          case M.lookup n table_env of
+            (Just _) ->
+              error
+                ("Column " ++ n ++ " does already exist in Table " ++ tableIdent)
+            Nothing -> do 
+              let (l,t) = extractLambdaType expr tableIdent env
+              if (t == t1) then 
                 let newTenv = M.insert n (t1, mds) table_env
                 in (TypeEnvironment
                       { var = venv
                       , table = M.adjust (const newTenv) tableIdent tenv
                       })
-          Nothing -> error ("Table " ++ tableIdent ++ " does not exist")
-      else
-        error ("Type of lambda ("++ (show t) ++") is different from column type ("++(show t1)++")")
+              else error ("Type of lambda ("++ (show t) ++") is different from column type ("++(show t1)++")")
+        Nothing -> error ("Table " ++ tableIdent ++ " does not exist")
     --split table
     operstat OperationSplit [a1, a2, a3] env =
       let TypeEnvironment {table = tenv, var = venv} = env

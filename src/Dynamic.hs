@@ -245,7 +245,6 @@ translateLambda t (Lambda e) env
           Nothing -> if M.member s $ fetchTable env t
             then s
             else error "Static error: given column does not exist"
-      subTranslate' Undefined env = error "Undefined given inside of lambda"
 
 doOperationDecouple :: Environment -> String -> [String] -> (Code, Environment)
 doOperationDecouple env i ss =
