@@ -248,9 +248,24 @@ check = foldHasql checkAlgebra
 
     -- Normalize and Decouple not statically checked    
     operstat OperationNormalize [a1, a2, a3] env = do
-      let tableIdent = extractString (fst (a1 env))
+      let TypeEnvironment {table = tenv, var = venv} = env
+          tableIdent = extractString (fst (a1 env))
           newtablename = extractString (fst (a2 env))
-          stringlist = extractStringList (fst (a3 env)) in env       
+          stringlist = extractStringList (fst (a3 env))
+          in if M.member tableIdent tenv
+            then if M.notMember newtablename tenv && M.notMember newtablename (fromJust (M.lookup tableIdent tenv))
+                   then (TypeEnvironment
+                           { var = venv
+                           , table = let tenv_new = M.insert newtablename (TypeInt, [Foreign]) (fromJust (M.lookup tableIdent tenv)) in 
+                                 (foldr
+                                    (moveColumn tableIdent newtablename)
+                                    (M.insert newtablename (M.insert "ID" (TypeInt,[Primary]) M.empty) (M.adjust (\_ -> tenv_new) tableIdent tenv))
+                                    stringlist)
+                           })
+                   else error
+                          ("Table " ++ newtablename ++ " does already exist")
+            else error ("Table " ++ tableIdent ++ " does not exist")
+     
 
     operstat OperationDecouple [a1, a2] env = 
       let TypeEnvironment {table = tenv, var = venv} = env
@@ -283,7 +298,7 @@ moveColumn tfrom tto col tenv = do
   case M.lookup col tablefrom of
     (Just (t, mds)) ->
       if isPrimary mds then
-        error "Primary column cannot be split"
+        error "Primary column cannot be Split or Normalized"
       else
         case M.lookup col tableto of
           Nothing ->
