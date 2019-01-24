@@ -251,7 +251,9 @@ check = foldHasql checkAlgebra
         Nothing -> error ("Table " ++ show tableIdent ++ " does not exist")
 
     -- Normalize and Decouple not statically checked    
-    operstat _ _ env = env
+    operstat OperationNormalize _ env = env
+    operstat OperationDecouple _ env = env
+    operstat o _ env = error ("Incorrect numer of arguments to "++ show o)
 
 moveColumn :: String -> String -> String -> TableEnv -> TableEnv
 moveColumn tfrom tto col tenv = do
