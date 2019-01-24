@@ -176,7 +176,11 @@ operstat OperationSplit iargs env =
     tableName = extractString (head args)
     newTableName = extractString (args !! 1)
     columnNames = extractStringList (args !! 2)
-operstat OperationDecouple iargs env = undefined
+operstat OperationDecouple iargs env = doOperationDecouple env tableNameOld columnNames
+  where 
+    args = map (\a -> a env) iargs
+    tableNameOld = extractString (head args)
+    columnNames = extractStringList (args !! 1)
 operstat OperationNormalize iargs env = doOperationNormalize env tableNameOld tableNameNew columnNames
   where 
     args = map (\a -> a env) iargs

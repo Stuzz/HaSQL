@@ -250,13 +250,31 @@ check = foldHasql checkAlgebra
     operstat OperationNormalize [a1, a2, a3] env = do
       let tableIdent = extractString (fst (a1 env))
           newtablename = extractString (fst (a2 env))
-          stringlist = extractStringList (fst (a3 env)) in env
+          stringlist = extractStringList (fst (a3 env)) in env       
 
     operstat OperationDecouple [a1, a2] env = 
-      let tableIdent = extractString (fst (a1 env))
-          stringlist = extractStringList (fst (a2 env)) in env
-          
+      let TypeEnvironment {table = tenv, var = venv} = env
+          tableIdent = extractString (fst (a1 env))
+          newtablename = getNameDecouple tableIdent 0 tenv
+          stringlist = extractStringList (fst (a2 env))
+       in if M.member tableIdent tenv
+                then (TypeEnvironment
+                        { var = venv
+                        , table = let (name, (t, mds)) = getPrimary (fromJust (M.lookup tableIdent tenv)) in 
+                              (foldr
+                                (moveColumn tableIdent newtablename)
+                                (M.insert newtablename (M.insert name (t,mds) M.empty) tenv)
+                                stringlist)
+                        })
+            else error ("Table " ++ tableIdent ++ " does not exist")
+
     operstat o _ env = error ("Incorrect numer of arguments to "++ show o)
+
+getNameDecouple :: String -> Int -> TableEnv -> String
+getNameDecouple tableIdent i tenv = case M.lookup (tableIdent ++ show i) tenv of
+              Just _ -> getNameDecouple tableIdent (i+1) tenv
+              Nothing -> (tableIdent ++ show i)
+    
 
 moveColumn :: String -> String -> String -> TableEnv -> TableEnv
 moveColumn tfrom tto col tenv = do
