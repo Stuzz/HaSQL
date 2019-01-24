@@ -250,6 +250,9 @@ check = foldHasql checkAlgebra
                  show newName ++ " does already exist in this environment")
         Nothing -> error ("Table " ++ show tableIdent ++ " does not exist")
 
+    -- Normalize and Decouple not statically checked    
+    operstat _ _ env = env
+
 moveColumn :: String -> String -> String -> TableEnv -> TableEnv
 moveColumn tfrom tto col tenv = do
   let (Just tablefrom) = M.lookup tfrom tenv
