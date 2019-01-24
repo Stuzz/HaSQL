@@ -218,13 +218,10 @@ check = foldHasql checkAlgebra
             then if M.notMember newtablename tenv
                    then (TypeEnvironment
                            { var = venv
-                           , table =
-                               M.insert
-                                 newtablename
-                                 M.empty
+                           , table = let (name, (t, mds)) = getPrimary (fromJust (M.lookup tableIdent tenv)) in 
                                  (foldr
                                     (moveColumn tableIdent newtablename)
-                                    tenv
+                                    (M.insert newtablename (M.insert name (t,mds) M.empty) tenv)
                                     stringlist)
                            })
                    else error
@@ -260,13 +257,23 @@ moveColumn tfrom tto col tenv = do
   let (Just tableto) = M.lookup tto tenv
   case M.lookup col tablefrom of
     (Just (t, mds)) ->
-      case M.lookup col tableto of
-        Nothing ->
-          let newEnv = M.adjust (\_ -> M.delete col tablefrom) tfrom tenv
-           in M.adjust (\_ -> M.insert col (t, mds) tableto) tto newEnv
-        (Just _) ->
-          error ("Column " ++ col ++ " does already exist in table " ++ tto)
+      if isPrimary mds then
+        error "Primary column cannot be split"
+      else
+        case M.lookup col tableto of
+          Nothing ->
+            let newEnv = M.adjust (\_ -> M.delete col tablefrom) tfrom tenv
+            in M.adjust (\_ -> M.insert col (t, mds) tableto) tto newEnv
+          (Just _) ->
+            error ("Column " ++ col ++ " does already exist in table " ++ tto)
     Nothing -> error ("Column " ++ col ++ " does not exist in table " ++ tfrom)
+
+isPrimary :: [ColumnModifier] -> Bool
+isPrimary (m:ds) = if m == Primary then True else isPrimary ds
+isPrimary [] = False
+
+getPrimary ::  M.Map String (Type, [ColumnModifier]) -> (String, (Type, [ColumnModifier]))
+getPrimary table = head (filter (\(key, (_,mds)) -> isPrimary mds) (M.toList table))
 
 assstat :: String -> TExpression -> TStatement
 assstat var expr env = do
