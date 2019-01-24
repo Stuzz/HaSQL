@@ -72,7 +72,7 @@ exampleAdd = Hasql init up
                 (Conditional (Expr (Ident "Age") OperGreaterEquals (Ident "AdultAge"))
                   (ConstBool True) (ConstBool False)))
             ]
-          , Declaration "TeenAge" TypeInt (Expr (Ident "AdultAge") OperConcatenate (ConstInt 5))
+          , Declaration "TeenAge" TypeInt (Expr (Ident "AdultAge") OperSubtract (ConstInt 5))
           , FunctionCall
             OperationAdd
             [ ArgExpression (ConstString "Users")
@@ -107,6 +107,28 @@ exampleNorm = Hasql init up
             OperationNormalize
             [ ArgExpression (ConstString "Users")
             , ArgExpression (ConstString "Ages")
+            , ArgStringList ["FirstName"]
+            ]
+        ]
+
+
+exampleDecouple :: Hasql
+exampleDecouple = Hasql init up
+  where
+    init =
+      Init
+        [ Table
+            "Users"
+            [ Column "ID" TypeInt [Primary]
+            , Column "FirstName" TypeString []
+            , Column "Age" TypeInt []
+            ]
+        ]
+    up =
+      Up
+        [ FunctionCall
+            OperationDecouple
+            [ ArgExpression (ConstString "Users")
             , ArgStringList ["FirstName"]
             ]
         ]

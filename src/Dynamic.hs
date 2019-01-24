@@ -48,7 +48,6 @@ instance Show Code where
     = concat ["-- Upgrade \n", intercalate "\n" u,
               "\n-- Downgrade \n", intercalate "\n" d]
 
-
 type Migration = Environment -> (Code, Environment)
 
 type TableName = String
@@ -169,7 +168,7 @@ operstat OperationSplit iargs env =
     columnNames = extractStringList (args !! 2)
 operstat OperationDecouple iargs env = undefined
 operstat OperationNormalize iargs env = doOperationNormalize env tableNameOld tableNameNew columnNames
-  where 
+  where
     args = map (\a -> a env) iargs
     tableNameOld = extractString (head args)
     tableNameNew = extractString (args !! 1)
@@ -268,7 +267,7 @@ doOperationDecouple env i ss =
     nameInsert x = intercalate x ss
     nameTypeInsert :: String -> String
     nameTypeInsert x = intercalate x (map prt (fetched env i ss))
-      where       
+      where
         prt :: (String, Type) -> String
         prt (s, t) = s ++ " " ++ typeTranslate t
     decoupledName :: String
@@ -310,7 +309,7 @@ doOperationNormalize env i s ss =
       -- Update reference to new table (not sure if this is correct)
       "UPDATE " ++ i ++ " SET " ++ i ++ "." ++ s ++ " = " ++ s ++ ".id"
       ++ "FROM " ++ s ++ " "
-      ++ "WHERE " ++ intercalate "AND " (map (\(colString, _) -> concat [i, ".", colString, " == ", s, ".", colString]) (fetched env i ss)),
+      ++ "WHERE " ++ intercalate "AND " (map (\(colString, _) -> concat [i, ".", colString, " = ", s, ".", colString]) (fetched env i ss)),
       -- Add foreign key constraint
       "ALTER TABLE " ++ i ++ " ADD CONSTRAINT fk_" ++ i ++ "_" ++ s ++ " FOREIGN KEY (" ++ s ++ ") REFERENCES " ++ s ++ " (id);",
       -- Drop the columns that we exported from the old tables
@@ -324,7 +323,7 @@ doOperationNormalize env i s ss =
         "INSERT INTO " ++ i ++ " ( "
         ++ "SELECT " ++ nameInsert ", " ++ " "
         ++ "FROM " ++ s ++ " "
-        ++ "WHERE " ++ s ++ ".id == " ++ i ++ "." ++ s
+        ++ "WHERE " ++ s ++ ".id = " ++ i ++ "." ++ s
         ++ ");",
         -- Drop new table & column referencing it in old table
         "DROP TABLE " ++ s ++ " CASCADE;"
@@ -370,21 +369,14 @@ doOperationSplit env i ss s =
           ]
       , downgrade =
           [ "ALTER TABLE " ++ i ++ " " ++ "ADD COLUMN " ++ nameTypeInsert ", ADD COLUMN " ++ ";"
-          , "INSERT INTO " ++
-            i ++
-            " ( " ++
-            nameInsert ", " ++
-            " )" ++
-            " ( " ++
-            "SELECT " ++
-            nameInsert ", " ++
-            "FROM " ++
+          , "UPDATE " ++ i ++ " SET " ++ intercalate ", " (map (\(colString, _) -> concat [i, ".", colString, " = ", s, ".", colString]) (fetched env i ss)) ++
+            " FROM " ++
             s ++
             " " ++
-            "WHERE " ++
+            " WHERE " ++
             i ++
             "." ++
-            nameICol columnPK ++ " == " ++ s ++ "." ++ nameICol columnPK ++ ");"
+            nameICol columnPK ++ " = " ++ s ++ "." ++ nameICol columnPK ++ ";"
           , "DROP TABLE " ++ s ++ ";"
           ]
       }
@@ -396,10 +388,10 @@ doOperationSplit env i ss s =
     nameInsert x = intercalate x ss
     nameTypeInsert :: String -> String
     nameTypeInsert x = intercalate x (map prt (fetched env i ss))
-      where       
+      where
         prt :: (String, Type) -> String
         prt (s, t) = s ++ " " ++ typeTranslate t
-    
+
 
 doOperationRename :: Environment -> TableName -> TableName -> (Code, Environment)
 doOperationRename env i s =
