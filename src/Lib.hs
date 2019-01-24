@@ -6,6 +6,7 @@ import Debug.Trace
 
 import Algebra
 import qualified Dynamic
+
 -- import Lexer
 -- import Parser
 import qualified Static
@@ -33,19 +34,19 @@ example = Hasql init up
     init =
       Init
         [ Table
-            "Users"
-            [ Column "ID" TypeInt [Primary]
-            , Column "FirstName" TypeString []
-            , Column "Age" TypeInt []
+            "users"
+            [ Column "id" TypeInt [Primary]
+            , Column "first_name" TypeString []
+            , Column "age" TypeInt []
             ]
         ]
     up =
       Up
         [ FunctionCall
             OperationSplit
-            [ ArgExpression (ConstString "Users")
-            , ArgExpression (ConstString "Names")
-            , ArgStringList ["FirstName"]
+            [ ArgExpression (ConstString "users")
+            , ArgExpression (ConstString "names")
+            , ArgStringList ["first_name"]
             ]
         ]
 
@@ -55,39 +56,47 @@ exampleAdd = Hasql init up
     init =
       Init
         [ Table
-            "Users"
-            [ Column "ID" TypeInt [Primary]
-            , Column "FirstName" TypeString []
-            , Column "Age" TypeInt []
+            "users"
+            [ Column "id" TypeInt [Primary]
+            , Column "first_name" TypeString []
+            , Column "age" TypeInt []
             ]
         ]
     up =
       Up
-        [ Declaration "AdultAge" TypeInt (ConstInt 18)
-          , FunctionCall
+        [ Declaration "adult_age" TypeInt (ConstInt 18)
+        , FunctionCall
             OperationAdd
-            [ ArgExpression (ConstString "Users")
-            , ArgColumn (Column "IsAdult" TypeBool [])
-            , ArgLambda (Lambda
-                (Conditional (Expr (Ident "Age") OperGreaterEquals (Ident "AdultAge"))
-                  (ConstBool True) (ConstBool False)))
+            [ ArgExpression (ConstString "users")
+            , ArgColumn (Column "is_adult" TypeBool [])
+            , ArgLambda
+                (Lambda
+                   (Conditional
+                      (Expr (Ident "age") OperGreaterEquals (Ident "adult_age"))
+                      (ConstBool True)
+                      (ConstBool False)))
             ]
-          , Declaration "TeenAge" TypeInt (Expr (Ident "AdultAge") OperSubtract (ConstInt 5))
-          , FunctionCall
+        , Declaration
+            "teen_age"
+            TypeInt
+            (Expr (Ident "adult_age") OperSubtract (ConstInt 5))
+        , FunctionCall
             OperationAdd
-            [ ArgExpression (ConstString "Users")
-            , ArgColumn (Column "IsTeen" TypeBool [])
-            , ArgLambda (Lambda
-                (Conditional (Expr (Ident "Age") OperGreaterEquals (Ident "TeenAge"))
-                  (ConstBool True) (ConstBool False)))
+            [ ArgExpression (ConstString "users")
+            , ArgColumn (Column "is_teen" TypeBool [])
+            , ArgLambda
+                (Lambda
+                   (Conditional
+                      (Expr (Ident "age") OperGreaterEquals (Ident "teen_age"))
+                      (ConstBool True)
+                      (ConstBool False)))
             ]
-          , FunctionCall
+        , FunctionCall
             OperationRename
-            [ ArgExpression (ConstString "Users")
-            , ArgExpression (ConstString "Candidates")
+            [ ArgExpression (ConstString "users")
+            , ArgExpression (ConstString "candidates")
             ]
         ]
-
 
 exampleNorm :: Hasql
 exampleNorm = Hasql init up
@@ -95,18 +104,18 @@ exampleNorm = Hasql init up
     init =
       Init
         [ Table
-            "Users"
-            [ Column "ID" TypeInt [Primary]
-            , Column "FirstName" TypeString []
-            , Column "Age" TypeInt []
+            "users"
+            [ Column "id" TypeInt [Primary]
+            , Column "first_name" TypeString []
+            , Column "age" TypeInt []
             ]
         ]
     up =
       Up
         [ FunctionCall
             OperationNormalize
-            [ ArgExpression (ConstString "Users")
-            , ArgExpression (ConstString "Ages")
-            , ArgStringList ["FirstName"]
+            [ ArgExpression (ConstString "users")
+            , ArgExpression (ConstString "aGes")
+            , ArgStringList ["first_name"]
             ]
         ]
