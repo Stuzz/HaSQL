@@ -67,16 +67,16 @@ exampleAdd = Hasql init up
           , FunctionCall
             OperationAdd
             [ ArgExpression (ConstString "Users")
-            , ArgColumn (Column "IsAdult" TypeString [])
+            , ArgColumn (Column "IsAdult" TypeBool [])
             , ArgLambda (Lambda
                 (Conditional (Expr (Ident "Age") OperGreaterEquals (Ident "AdultAge"))
                   (ConstBool True) (ConstBool False)))
             ]
-          , Declaration "TeenAge" TypeInt (Expr (Ident "AdultAge") OperConcatenate (ConstInt 5))
+          , Declaration "TeenAge" TypeInt (Expr (Ident "AdultAge") OperSubtract (ConstInt 5))
           , FunctionCall
             OperationAdd
             [ ArgExpression (ConstString "Users")
-            , ArgColumn (Column "IsTeen" TypeString [])
+            , ArgColumn (Column "IsTeen" TypeBool [])
             , ArgLambda (Lambda
                 (Conditional (Expr (Ident "Age") OperGreaterEquals (Ident "TeenAge"))
                   (ConstBool True) (ConstBool False)))
