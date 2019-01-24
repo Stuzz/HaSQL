@@ -256,7 +256,7 @@ doOperationDecouple env i ss =
       { upgrade =
           [ "CREATE TABLE " ++ decoupledName ++" ( " ++
             nameICol columnPK ++ " " ++ show (typeICol columnPK) ++ " PRIMARY KEY NOT NULL,"
-            ++ concatMap (\(colString, colType) -> concat [colString, " ", typeTranslate colType, ","]) (fetched env i ss)
+            ++ intercalate ", " (map (\(colString, colType) -> concat [colString, " ", typeTranslate colType]) (fetched env i ss))
             ++ ");"
           , "INSERT INTO " ++ decoupledName ++ " ( "
             ++ "SELECT  "
@@ -267,8 +267,8 @@ doOperationDecouple env i ss =
           [ "ALTER TABLE " ++ i ++ "ADD COLUMN " ++ nameTypeInsert ", ADD COLUMN " ++ ";"
           , "INSERT INTO " ++ i ++ " ( " ++ nameInsert ", " ++" )" ++ " ( "
           ++ "SELECT " ++ nameInsert ", "
-          ++ "FROM " ++ decoupledName ++ " "
-          ++ "WHERE " ++ i ++ "." ++ nameICol columnPK ++ " == " ++ decoupledName ++ "." ++ nameICol columnPK ++ ");"
+          ++ " FROM " ++ decoupledName ++ " "
+          ++ "WHERE " ++ i ++ "." ++ nameICol columnPK ++ " = " ++ decoupledName ++ "." ++ nameICol columnPK ++ ");"
           , "DROP TABLE " ++ decoupledName ++ ";"
           ]
       }

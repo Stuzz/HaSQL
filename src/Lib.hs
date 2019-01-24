@@ -127,17 +127,39 @@ exampleDecouple = Hasql init up
     init =
       Init
         [ Table
-            "Users"
-            [ Column "ID" TypeInt [Primary]
-            , Column "FirstName" TypeString []
-            , Column "Age" TypeInt []
+            "users"
+            [ Column "id" TypeInt [Primary]
+            , Column "first_name" TypeString []
+            , Column "age" TypeInt []
             ]
         ]
     up =
       Up
         [ FunctionCall
             OperationDecouple
-            [ ArgExpression (ConstString "Users")
-            , ArgStringList ["FirstName"]
+            [ ArgExpression (ConstString "users")
+            , ArgStringList ["first_name"]
+            ]
+        ]
+
+exampleSplit :: Hasql
+exampleSplit = Hasql init up
+  where
+    init =
+      Init
+        [ Table
+            "users"
+            [ Column "id" TypeInt [Primary]
+            , Column "first_name" TypeString []
+            , Column "age" TypeInt []
+            ]
+        ]
+    up =
+      Up
+        [ FunctionCall
+            OperationSplit
+            [ ArgExpression (ConstString "users")
+            , ArgExpression (ConstString "names")
+            , ArgStringList ["first_name"]
             ]
         ]
