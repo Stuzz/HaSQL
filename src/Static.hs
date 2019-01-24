@@ -247,8 +247,15 @@ check = foldHasql checkAlgebra
         Nothing -> error ("Table " ++ show tableIdent ++ " does not exist")
 
     -- Normalize and Decouple not statically checked    
-    operstat OperationNormalize _ env = env
-    operstat OperationDecouple _ env = env
+    operstat OperationNormalize [a1, a2, a3] env = do
+      let tableIdent = extractString (fst (a1 env))
+          newtablename = extractString (fst (a2 env))
+          stringlist = extractStringList (fst (a3 env)) in env
+
+    operstat OperationDecouple [a1, a2] env = 
+      let tableIdent = extractString (fst (a1 env))
+          stringlist = extractStringList (fst (a2 env)) in env
+          
     operstat o _ env = error ("Incorrect numer of arguments to "++ show o)
 
 moveColumn :: String -> String -> String -> TableEnv -> TableEnv
