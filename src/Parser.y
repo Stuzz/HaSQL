@@ -70,8 +70,7 @@ Statements   : {- empty -}                                { [] }
 Statement    : Declaration                                { $1 }
              | FunctionCall                               { $1 }
              | Assignment                                 { $1 }
-Declaration  : Type Ident                                 { Declaration $2 $1 Undefined }
-             | Type Ident "=" Expression                  { Declaration $2 $1 $4 }
+Declaration  : Type Ident "=" Expression                  { Declaration $2 $1 $4 }
 Assignment   : Ident "=" Expression                       { Assignment $1 $3 }
 FunctionCall : Operation "(" Arguments ")"                { FunctionCall $1 $3 }
 Operation    : "Add"                                      { OperationAdd }

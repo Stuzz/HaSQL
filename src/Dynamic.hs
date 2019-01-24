@@ -44,9 +44,13 @@ data Code = Code
   }
 
 instance Show Code where
-  show Code {upgrade = u, downgrade = d}
-    = concat ["-- Upgrade \n", intercalate "\n" u,
-              "\n-- Downgrade \n", intercalate "\n" d]
+  show Code {upgrade = u, downgrade = d} =
+    concat
+      [ "-- Upgrade \n"
+      , intercalate "\n" u
+      , "\n-- Downgrade \n"
+      , intercalate "\n" d
+      ]
 
 type Migration = Environment -> (Code, Environment)
 
@@ -122,10 +126,16 @@ colmod1 :: ColumnModifier -> ColumnModifier
 colmod1 = id
 
 up1 :: [Migration] -> Migration
-up1 ms env = up' ms (initial, env)
+up1 ms env = up' ms' (initial, env)
   where
     up' :: [Migration] -> (Code, Environment) -> (Code, Environment)
     up' ss acc = foldl (flip process) acc ss
+    -- | The statements needed for the migrations, wrapped in a transaction.
+    ms' = beginTransaction : ms ++ [commitTransaction]
+    beginTransaction env' =
+      (Code {upgrade = ["BEGIN;"], downgrade = ["COMMIT"]}, env')
+    commitTransaction env' =
+      (Code {upgrade = ["COMMIT;"], downgrade = ["BEGIN;"]}, env')
     process :: Migration -> (Code, Environment) -> (Code, Environment)
     process current (prevCode, prevEnv) =
       let (nextCode, nextEnv) = current prevEnv
@@ -166,7 +176,11 @@ operstat OperationSplit iargs env =
     tableName = extractString (head args)
     newTableName = extractString (args !! 1)
     columnNames = extractStringList (args !! 2)
-operstat OperationDecouple iargs env = undefined
+operstat OperationDecouple iargs env = doOperationDecouple env tableNameOld columnNames
+  where
+    args = map (\a -> a env) iargs
+    tableNameOld = extractString (head args)
+    columnNames = extractStringList (args !! 1)
 operstat OperationNormalize iargs env = doOperationNormalize env tableNameOld tableNameNew columnNames
   where
     args = map (\a -> a env) iargs
@@ -235,7 +249,6 @@ translateLambda t (Lambda e) env
           Nothing -> if M.member s $ fetchTable env t
             then s
             else error "Static error: given column does not exist"
-      subTranslate' Undefined env = error "Undefined given inside of lambda"
 
 doOperationDecouple :: Environment -> String -> [String] -> (Code, Environment)
 doOperationDecouple env i ss =
