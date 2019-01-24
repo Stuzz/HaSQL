@@ -44,10 +44,13 @@ data Code = Code
   }
 
 instance Show Code where
-  show Code {upgrade = u, downgrade = d}
-    = concat ["-- Upgrade \n", intercalate "\n" u,
-              "\n-- Downgrade \n", intercalate "\n" d]
-
+  show Code {upgrade = u, downgrade = d} =
+    concat
+      [ "-- Upgrade \n"
+      , intercalate "\n" u
+      , "\n-- Downgrade \n"
+      , intercalate "\n" d
+      ]
 
 type Migration = Environment -> (Code, Environment)
 
@@ -123,10 +126,16 @@ colmod1 :: ColumnModifier -> ColumnModifier
 colmod1 = id
 
 up1 :: [Migration] -> Migration
-up1 ms env = up' ms (initial, env)
+up1 ms env = up' ms' (initial, env)
   where
     up' :: [Migration] -> (Code, Environment) -> (Code, Environment)
     up' ss acc = foldl (flip process) acc ss
+    -- | The statements needed for the migrations, wrapped in a transaction.
+    ms' = beginTransaction : ms ++ [commitTransaction]
+    beginTransaction env' =
+      (Code {upgrade = ["BEGIN;"], downgrade = ["COMMIT"]}, env')
+    commitTransaction env' =
+      (Code {upgrade = ["COMMIT;"], downgrade = ["BEGIN;"]}, env')
     process :: Migration -> (Code, Environment) -> (Code, Environment)
     process current (prevCode, prevEnv) =
       let (nextCode, nextEnv) = current prevEnv
