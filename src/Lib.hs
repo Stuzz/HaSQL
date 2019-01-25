@@ -4,7 +4,6 @@ module Lib
 
 import Debug.Trace
 
-import Algebra
 import qualified Dynamic
 import Lexer
 import Parser
