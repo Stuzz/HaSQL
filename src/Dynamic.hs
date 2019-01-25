@@ -382,7 +382,7 @@ doOperationSplit env i ss s =
           ]
       , downgrade =
           [ "ALTER TABLE " ++ i ++ " " ++ "ADD COLUMN " ++ nameTypeInsert ", ADD COLUMN " ++ ";"
-          , "UPDATE " ++ i ++ " SET " ++ intercalate ", " (map (\(colString, _) -> concat [i, ".", colString, " = ", s, ".", colString]) (fetched env i ss)) ++
+          , "UPDATE " ++ i ++ " SET " ++ intercalate ", " (map (\(colString, _) -> concat [colString, " = ", s, ".", colString]) (fetched env i ss)) ++
             " FROM " ++
             s ++
             " " ++
