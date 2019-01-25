@@ -18,8 +18,8 @@ parseSql = compile . parse . scan
 -- XXX: Dangerous, don't touch, might explode
 compile :: Hasql -> Dynamic.Code
 compile hasql =
-  let bigChungus = traceShowId $ Static.check hasql
-   in const (Dynamic.generate hasql) $! bigChungus
+  let staticChecks = traceShowId $ Static.check hasql
+   in const (Dynamic.generate hasql) $! staticChecks
 
 execDyn :: Hasql -> Dynamic.Code
 execDyn hasql = Dynamic.generate hasql
