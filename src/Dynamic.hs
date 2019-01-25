@@ -133,7 +133,7 @@ up1 ms env = up' ms' (initial, env)
     -- | The statements needed for the migrations, wrapped in a transaction.
     ms' = beginTransaction : ms ++ [commitTransaction]
     beginTransaction env' =
-      (Code {upgrade = ["BEGIN;"], downgrade = ["COMMIT"]}, env')
+      (Code {upgrade = ["BEGIN;"], downgrade = ["COMMIT;"]}, env')
     commitTransaction env' =
       (Code {upgrade = ["COMMIT;"], downgrade = ["BEGIN;"]}, env')
     process :: Migration -> (Code, Environment) -> (Code, Environment)
@@ -409,8 +409,8 @@ doOperationSplit env i ss s =
 doOperationRename :: Environment -> TableName -> TableName -> (Code, Environment)
 doOperationRename env i s =
   ( Code
-      { upgrade = ["ALTER TABLE " ++ i ++ " RENAME TO " ++ s]
-      , downgrade = ["ALTER TABLE " ++ s ++ " RENAME TO " ++ i]
+      { upgrade = ["ALTER TABLE " ++ i ++ " RENAME TO " ++ s ++ ";"]
+      , downgrade = ["ALTER TABLE " ++ s ++ " RENAME TO " ++ i ++ ";"]
       }
   , newEnv)
   where
