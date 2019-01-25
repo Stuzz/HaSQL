@@ -115,11 +115,10 @@ exampleNorm = Hasql init up
         [ FunctionCall
             OperationNormalize
             [ ArgExpression (ConstString "users")
-            , ArgExpression (ConstString "aGes")
-            , ArgStringList ["first_name"]
+            , ArgExpression (ConstString "ages")
+            , ArgStringList ["age"]
             ]
         ]
-
 
 exampleDecouple :: Hasql
 exampleDecouple = Hasql init up
@@ -137,9 +136,7 @@ exampleDecouple = Hasql init up
       Up
         [ FunctionCall
             OperationDecouple
-            [ ArgExpression (ConstString "users")
-            , ArgStringList ["first_name"]
-            ]
+            [ArgExpression (ConstString "users"), ArgStringList ["first_name"]]
         ]
 
 exampleSplit :: Hasql

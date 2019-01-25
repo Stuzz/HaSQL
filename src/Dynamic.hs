@@ -308,44 +308,60 @@ doOperationNormalize env i s ss =
   ( Code
     { upgrade = [
       -- Create new table
-      "CREATE TABLE " ++ s ++ " ( "
+      "CREATE TABLE " ++ s ++ " ("
       ++ "id SERIAL PRIMARY KEY, "
-      ++ concatMap (\(colString, colType) -> concat [colString, " ", typeTranslate colType, ","]) (fetched env i ss)
-      ++ " );",
+      ++ intercalate
+           ", "
+           (map
+             (\(colString, colType) -> concat [colString, " ", typeTranslate colType])
+             (fetched env i ss))
+      ++ ");",
       -- Insert data into new table
-      "INSERT INTO " ++ s ++ " ( "
+      "INSERT INTO " ++ s
+      ++ " (" ++ nameInsert ", " ++ ") "
+      ++ "("
       ++ "SELECT DISTINCT " ++ nameInsert ", " ++ " "
       ++ "FROM " ++ i
-      ++ " );",
+      ++ ");",
       -- Create column in previous table
-      "ALTER TABLE " ++ i ++ " ADD COLUMN " ++ s ++ " INTEGER",
+      "ALTER TABLE " ++ i ++ " ADD COLUMN " ++ fkColumnName ++ " INTEGER REFERENCES " ++ s ++ " (id);",
       -- Update reference to new table (not sure if this is correct)
-      "UPDATE " ++ i ++ " SET " ++ i ++ "." ++ s ++ " = " ++ s ++ ".id"
+      "UPDATE " ++ i ++ " SET " ++ fkColumnName ++ " = " ++ s ++ ".id "
       ++ "FROM " ++ s ++ " "
-      ++ "WHERE " ++ intercalate "AND " (map (\(colString, _) -> concat [i, ".", colString, " = ", s, ".", colString]) (fetched env i ss)),
-      -- Add foreign key constraint
-      "ALTER TABLE " ++ i ++ " ADD CONSTRAINT fk_" ++ i ++ "_" ++ s ++ " FOREIGN KEY (" ++ s ++ ") REFERENCES " ++ s ++ " (id);",
+      ++ "WHERE " ++ intercalate "AND " (map (\(colString, _) -> concat [i, ".", colString, " = ", s, ".", colString]) (fetched env i ss))
+      ++ ";",
       -- Drop the columns that we exported from the old tables
       "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ nameInsert ", DROP COLUMN " ++ ";"
     ]
       ,
       downgrade = [
         -- Re-add the columns
-        "ALTER TABLE " ++ i ++ " ADD COLUMN " ++ nameInsert ", ADD COLUMN " ++ ";",
+        "ALTER TABLE " ++ i ++ " ADD COLUMN " ++ nameTypeInsert ", ADD COLUMN " ++ ";",
         -- Insert the data
-        "INSERT INTO " ++ i ++ " ( "
-        ++ "SELECT " ++ nameInsert ", " ++ " "
+        "UPDATE " ++ i ++ " "
+        ++ "SET " ++ downgradeUpdate ++ " "
         ++ "FROM " ++ s ++ " "
-        ++ "WHERE " ++ s ++ ".id = " ++ i ++ "." ++ s
-        ++ ");",
+        ++ "WHERE " ++ s ++ ".id = " ++ i ++ "." ++ fkColumnName
+        ++ ";",
         -- Drop new table & column referencing it in old table
-        "DROP TABLE " ++ s ++ " CASCADE;"
+        "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ fkColumnName ++ ";",
+        "DROP TABLE " ++ s ++ ";"
       ]
     }
   , Environment { table = addAndRemove $ table env, var = var env })
   where
+    fkColumnName = s ++ "_id"
     nameInsert :: String -> String
     nameInsert x = intercalate x (map fst (fetched env i ss))
+    nameTypeInsert :: String -> String
+    nameTypeInsert x = intercalate x (map prt (fetched env i ss))
+      where
+        prt :: (String, Type) -> String
+        prt (s, t) = s ++ " " ++ typeTranslate t
+    downgradeUpdate =
+      intercalate ", " $
+      map (\(columnName, _) -> concat [columnName, " = ", s, ".", columnName]) $
+      fetched env i ss
     addAndRemove :: TableEnv -> TableEnv
     addAndRemove table = remove $ add table
       where
@@ -365,11 +381,11 @@ doOperationSplit env i ss s =
       { upgrade =
           [ "CREATE TABLE " ++
             s ++
-            " ( " ++
+            " (" ++
             nameICol columnPK ++
             " " ++
             typeTranslate (typeICol columnPK) ++
-            " PRIMARY KEY NOT NULL, " ++
+            " PRIMARY KEY, " ++
             nameTypeInsert ", " ++
             ");"
           , "INSERT INTO " ++
