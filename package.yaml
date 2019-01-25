@@ -1,14 +1,8 @@
 name:                hasql
 version:             0.1.0.0
-github:              "githubuser/hasql"
-license:             BSD3
-author:              "Author name here"
-maintainer:          "example@example.com"
-copyright:           "2018 Author name here"
 
 extra-source-files:
 - README.md
-- ChangeLog.md
 
 # Metadata used when publishing your package
 # synopsis:            Short description of your package
@@ -38,16 +32,5 @@ executables:
       - -with-rtsopts=-N
       - -O2
       - -Wall
-    dependencies:
-      - hasql
-
-tests:
-  hasql-test:
-    main:                Spec.hs
-    source-dirs:         test
-    ghc-options:
-      - -threaded
-      - -rtsopts
-      - -with-rtsopts=-N
     dependencies:
       - hasql
