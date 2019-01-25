@@ -12,9 +12,6 @@ import qualified Static
 import Syntax
 
 -- | Transform a migration file into a list of SQL statements.
---
--- TODO: This should of course return SQL files for both the up and the down
---       migration.
 parseSql :: String -> Dynamic.Code
 parseSql = compile . parse . scan
 
