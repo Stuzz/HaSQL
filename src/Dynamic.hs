@@ -461,9 +461,9 @@ codeConcat c1 c2 =
     }
 
 typeTranslate :: Type -> String
-typeTranslate TypeBool = "boolean"
-typeTranslate TypeString = "varchar"
-typeTranslate TypeInt = "integer"
+typeTranslate TypeBool = "BOOLEAN"
+typeTranslate TypeString = "VARCHAR"
+typeTranslate TypeInt = "INTEGER"
 
 constantTranslate :: Constant -> String
 constantTranslate (BoolConst x) = show x
