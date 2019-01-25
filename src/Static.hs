@@ -159,6 +159,7 @@ check = foldHasql checkAlgebra
     operation1 = id
     operstat :: Operation -> [TArgument] -> TStatement
 
+    --hack to evaluate Lambda expressions which contain column names
     extractLambdaType :: Expression -> String -> TypeEnvironment -> (Lambda, Type)
     extractLambdaType expr i env =
       let (e, t) = eval expr i env
@@ -186,21 +187,21 @@ check = foldHasql checkAlgebra
             Nothing -> error ("Static error: column "++ i ++" does not exist in table "++tableIdent)
 
 
-    --add column (NOT TESTED)
+    --add column with lambda
     operstat OperationAdd [a1, a2, a3] env = do
       let TypeEnvironment {table = tenv, var = venv} = env
       let tableIdent = extractString (fst (a1 env))
       let (Column n t1 mds) = extractColumn (fst (a2 env))
       let (Lambda expr) = extractLambda (fst (a3 env))
-      case M.lookup tableIdent tenv of
+      case M.lookup tableIdent tenv of --check if table exists
         (Just table_env) ->
-          case M.lookup n table_env of
+          case M.lookup n table_env of -- check if name of new column does not exist
             (Just _) ->
               error
                 ("Column " ++ n ++ " does already exist in Table " ++ tableIdent)
             Nothing -> do 
-              let (l,t) = extractLambdaType expr tableIdent env
-              if (t == t1) then 
+              let (l,t) = extractLambdaType expr tableIdent env --evaluate the type of the lambda expression
+              if (t == t1) then  --compare type of lambda expression to the type of the added column
                 let newTenv = M.insert n (t1, mds) table_env
                 in (TypeEnvironment
                       { var = venv
@@ -208,33 +209,36 @@ check = foldHasql checkAlgebra
                       })
               else error ("Type of lambda ("++ (show t) ++") is different from column type ("++(show t1)++")")
         Nothing -> error ("Table " ++ tableIdent ++ " does not exist")
+    
     --split table
     operstat OperationSplit [a1, a2, a3] env =
       let TypeEnvironment {table = tenv, var = venv} = env
           tableIdent = extractString (fst (a1 env))
           newtablename = extractString (fst (a2 env))
-          stringlist = extractStringList (fst (a3 env))
-       in if M.member tableIdent tenv
-            then if M.notMember newtablename tenv
+          stringlist = extractStringList (fst (a3 env)) --columns to be split
+       in if M.member tableIdent tenv --check if table exists
+            then if M.notMember newtablename tenv --check if new table name does not exist
                    then (TypeEnvironment
                            { var = venv
+                           --copy the primary column to the new table
                            , table = let (name, (t, mds)) = getPrimary (fromJust (M.lookup tableIdent tenv)) in 
                                  (foldr
-                                    (moveColumn tableIdent newtablename)
+                                    (moveColumn tableIdent newtablename) --move each column
                                     (M.insert newtablename (M.insert name (t,mds) M.empty) tenv)
                                     stringlist)
                            })
                    else error
                           ("Table " ++ newtablename ++ " does already exist")
             else error ("Table " ++ tableIdent ++ " does not exist")
+
     -- Rename table
     operstat OperationRename [a1, a2] env = do
       let TypeEnvironment {table = tenv, var = venv} = env
       let tableIdent = extractString (fst (a1 env))
       let newName = extractString (fst (a2 env))
-      case M.lookup tableIdent tenv of
+      case M.lookup tableIdent tenv of --check if old table exists
         Just curtable ->
-          case M.lookup newName tenv of
+          case M.lookup newName tenv of -- check if new name does not exist
             Nothing ->
               TypeEnvironment
                 { var = venv
@@ -246,27 +250,30 @@ check = foldHasql checkAlgebra
                  show newName ++ " does already exist in this environment")
         Nothing -> error ("Table " ++ show tableIdent ++ " does not exist")
 
-    -- Normalize and Decouple not statically checked    
+    -- Normalize   
     operstat OperationNormalize [a1, a2, a3] env = do
       let TypeEnvironment {table = tenv, var = venv} = env
-          tableIdent = extractString (fst (a1 env))
-          newtablename = extractString (fst (a2 env))
-          stringlist = extractStringList (fst (a3 env))
+          tableIdent = extractString (fst (a1 env)) --table
+          newtablename = extractString (fst (a2 env)) --target of normalize table
+          stringlist = extractStringList (fst (a3 env)) --columns to be normalized
           in if M.member tableIdent tenv
+            -- check if new table does not exists and the current table does not contain a column with that name
             then if M.notMember newtablename tenv && M.notMember newtablename (fromJust (M.lookup tableIdent tenv))
                    then (TypeEnvironment
                            { var = venv
+                           --insert a coupling column in the original table as foreign key
                            , table = let tenv_new = M.insert newtablename (TypeInt, [Foreign]) (fromJust (M.lookup tableIdent tenv)) in 
                                  (foldr
                                     (moveColumn tableIdent newtablename)
+                                    --ad an ID column in the empty new table which is primary and links to the foreign column in the original table
                                     (M.insert newtablename (M.insert "ID" (TypeInt,[Primary]) M.empty) (M.adjust (\_ -> tenv_new) tableIdent tenv))
                                     stringlist)
                            })
                    else error
-                          ("Table " ++ newtablename ++ " does already exist")
+                          ("Table " ++ newtablename ++ " does already exist as table or column name")
             else error ("Table " ++ tableIdent ++ " does not exist")
      
-
+    -- decouple (secretly move all columns to a new table called "tablename_decoupled[integer]")                       
     operstat OperationDecouple [a1, a2] env = 
       let TypeEnvironment {table = tenv, var = venv} = env
           tableIdent = extractString (fst (a1 env))
@@ -285,19 +292,20 @@ check = foldHasql checkAlgebra
 
     operstat o _ env = error ("Incorrect numer of arguments to "++ show o)
 
+--find the first number available from i    
 getNameDecouple :: String -> Int -> TableEnv -> String
 getNameDecouple tableIdent i tenv = case M.lookup (tableIdent ++ show i) tenv of
               Just _ -> getNameDecouple tableIdent (i+1) tenv
               Nothing -> (tableIdent ++ show i)
     
-
+--move a column from one table to the other
 moveColumn :: String -> String -> String -> TableEnv -> TableEnv
 moveColumn tfrom tto col tenv = do
   let (Just tablefrom) = M.lookup tfrom tenv
   let (Just tableto) = M.lookup tto tenv
   case M.lookup col tablefrom of
     (Just (t, mds)) ->
-      if isPrimary mds then
+      if isPrimary mds then --primary columns cannot be moved
         error "Primary column cannot be Split or Normalized"
       else
         case M.lookup col tableto of
@@ -308,12 +316,15 @@ moveColumn tfrom tto col tenv = do
             error ("Column " ++ col ++ " does already exist in table " ++ tto)
     Nothing -> error ("Column " ++ col ++ " does not exist in table " ++ tfrom)
 
+--check if a column is primary    
 isPrimary :: [ColumnModifier] -> Bool
 isPrimary (m:ds) = if m == Primary then True else isPrimary ds
 isPrimary [] = False
 
+--get the primary column of a table
 getPrimary ::  M.Map String (Type, [ColumnModifier]) -> (String, (Type, [ColumnModifier]))
 getPrimary table = head (filter (\(key, (_,mds)) -> isPrimary mds) (M.toList table))
+
 
 assstat :: String -> TExpression -> TStatement
 assstat var expr env = do
