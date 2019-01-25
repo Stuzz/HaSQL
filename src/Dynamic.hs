@@ -254,21 +254,22 @@ doOperationDecouple :: Environment -> String -> [String] -> (Code, Environment)
 doOperationDecouple env i ss =
   ( Code
       { upgrade =
-          [ "CREATE TABLE " ++ decoupledName ++" ( " ++
-            nameICol columnPK ++ " " ++ show (typeICol columnPK) ++ " PRIMARY KEY NOT NULL,"
+          [ "CREATE TABLE " ++ decoupledName ++" (" ++
+            nameICol columnPK ++ " " ++ typeTranslate (typeICol columnPK) ++ " PRIMARY KEY, "
             ++ intercalate ", " (map (\(colString, colType) -> concat [colString, " ", typeTranslate colType]) (fetched env i ss))
             ++ ");"
-          , "INSERT INTO " ++ decoupledName ++ " ( "
-            ++ "SELECT  "
-            ++ nameICol columnPK ++ ", " ++ nameInsert ", " ++ "FROM " ++ i ++ " " ++ ");"
+          , "INSERT INTO " ++ decoupledName ++ " ("
+            ++ "SELECT "
+            ++ nameICol columnPK ++ ", " ++ nameInsert ", " ++ " FROM " ++ i ++ ");"
           , "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ nameInsert ", DROP COLUMN " ++ ";"
           ]
       , downgrade =
-          [ "ALTER TABLE " ++ i ++ "ADD COLUMN " ++ nameTypeInsert ", ADD COLUMN " ++ ";"
-          , "INSERT INTO " ++ i ++ " ( " ++ nameInsert ", " ++" )" ++ " ( "
-          ++ "SELECT " ++ nameInsert ", "
-          ++ " FROM " ++ decoupledName ++ " "
-          ++ "WHERE " ++ i ++ "." ++ nameICol columnPK ++ " = " ++ decoupledName ++ "." ++ nameICol columnPK ++ ");"
+          [ "ALTER TABLE " ++ i ++ " ADD COLUMN " ++ nameTypeInsert ", ADD COLUMN " ++ ";"
+          , "UPDATE " ++ i ++ " "
+          ++ "SET " ++ downgradeUpdate ++ " "
+          ++ "FROM " ++ decoupledName ++ " "
+          ++ "WHERE " ++ i ++ "." ++ nameICol columnPK ++ " = " ++ decoupledName ++ "." ++ nameICol columnPK
+          ++ ";"
           , "DROP TABLE " ++ decoupledName ++ ";"
           ]
       }
@@ -285,6 +286,10 @@ doOperationDecouple env i ss =
         prt (s, t) = s ++ " " ++ typeTranslate t
     decoupledName :: String
     decoupledName = i ++ "_decoupled" ++ show (count 0)
+    downgradeUpdate =
+      intercalate ", " $
+      map (\(columnName, _) -> concat [columnName, " = ", decoupledName, ".", columnName]) $
+      fetched env i ss
     addAndRemove :: TableEnv -> TableEnv
     addAndRemove table = remove $ add table
       where
@@ -390,10 +395,10 @@ doOperationSplit env i ss s =
             ");"
           , "INSERT INTO " ++
             s ++
-            " ( " ++
+            " (" ++
             "SELECT " ++
             nameICol columnPK ++
-            ", " ++ nameInsert ", " ++ " FROM " ++ i ++ " " ++ ");"
+            ", " ++ nameInsert ", " ++ " FROM " ++ i ++ ");"
           , "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ nameInsert ", DROP COLUMN " ++ ";"
           ]
       , downgrade =
@@ -476,6 +481,7 @@ codeConcat c1 c2 =
     , downgrade = downgrade c1 ++ downgrade c2
     }
 
+-- XXX: This should be 'SERIAL' for key columns
 typeTranslate :: Type -> String
 typeTranslate TypeBool = "BOOLEAN"
 typeTranslate TypeString = "VARCHAR"
