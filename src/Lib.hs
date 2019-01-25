@@ -6,9 +6,8 @@ import Debug.Trace
 
 import Algebra
 import qualified Dynamic
-
--- import Lexer
--- import Parser
+import Lexer
+import Parser
 import qualified Static
 import Syntax
 
@@ -17,7 +16,7 @@ import Syntax
 -- TODO: This should of course return SQL files for both the up and the down
 --       migration.
 parseSql :: String -> Dynamic.Code
-parseSql = const (compile example)
+parseSql = compile . parse . scan
 
 -- XXX: Dangerous, don't touch, might explode
 compile :: Hasql -> Dynamic.Code
