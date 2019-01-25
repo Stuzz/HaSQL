@@ -220,13 +220,13 @@ doOperationAdd env i c lambda =
       { upgrade =
           [ "ALTER TABLE " ++ i ++
                 " ADD COLUMN " ++ nameICol c ++ " " ++
-                typeTranslate (typeICol c) ++ ";\n",
+                typeTranslate (typeICol c) ++ ";",
             "UPDATE " ++ i ++ " " ++
-                "SET " ++ nameICol c ++ " = " ++ translateLambda i lambda env ++ ";\n"
+                "SET " ++ nameICol c ++ " = " ++ translateLambda i lambda env ++ ";"
           ]
       , downgrade =
           [
-            "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ nameICol c ++ ";\n"
+            "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ nameICol c ++ ";"
           ]
       },
   Environment { table = M.adjust (M.insert (nameICol c) c) i (table env), var = var env})
