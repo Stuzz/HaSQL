@@ -22,13 +22,14 @@ stack run
 All source files are contained in the 'scr' folder. This contains the following files:
 
 Algebra.hs
-Fold structure
+This contains the algebraic definition used for the fold used in the static type checking 
+and code generation.
 
 Static.hs
 Contains the code for the Static Semantics
 
 Dynamic.hs
-Contains the code representing the Dynamic Semantics
+Contains the code representing the Dynamic Semantics which generate code.
 
 Lib.hs
 Contains examples to be run
