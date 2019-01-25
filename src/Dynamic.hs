@@ -98,7 +98,6 @@ fExprOper e1 o e2 env = doOperator o expr1 expr2
     expr1 = e1 env
     expr2 = e2 env
 
-
 fExprCond :: IConstant -> IConstant -> IConstant -> IConstant
 fExprCond b true false env =
   case b env of
@@ -176,12 +175,14 @@ operstat OperationSplit iargs env =
     tableName = extractString (head args)
     newTableName = extractString (args !! 1)
     columnNames = extractStringList (args !! 2)
-operstat OperationDecouple iargs env = doOperationDecouple env tableNameOld columnNames
+operstat OperationDecouple iargs env =
+  doOperationDecouple env tableNameOld columnNames
   where
     args = map (\a -> a env) iargs
     tableNameOld = extractString (head args)
     columnNames = extractStringList (args !! 1)
-operstat OperationNormalize iargs env = doOperationNormalize env tableNameOld tableNameNew columnNames
+operstat OperationNormalize iargs env =
+  doOperationNormalize env tableNameOld tableNameNew columnNames
   where
     args = map (\a -> a env) iargs
     tableNameOld = extractString (head args)
@@ -218,35 +219,50 @@ doOperationAdd ::
 doOperationAdd env i c lambda =
   ( Code
       { upgrade =
-          [ "ALTER TABLE " ++ i ++
-                " ADD COLUMN " ++ nameICol c ++ " " ++
-                typeTranslate (typeICol c) ++ ";",
-            "UPDATE " ++ i ++ " " ++
-                "SET " ++ nameICol c ++ " = " ++ translateLambda i lambda env ++ ";"
+          [ "ALTER TABLE " ++
+            i ++
+            " ADD COLUMN " ++
+            nameICol c ++ " " ++ typeTranslate (typeICol c) ++ ";"
+          , "UPDATE " ++
+            i ++
+            " " ++
+            "SET " ++ nameICol c ++ " = " ++ translateLambda i lambda env ++ ";"
           ]
       , downgrade =
-          [
-            "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ nameICol c ++ ";"
-          ]
-      },
-  Environment { table = M.adjust (M.insert (nameICol c) c) i (table env), var = var env})
+          ["ALTER TABLE " ++ i ++ " DROP COLUMN " ++ nameICol c ++ ";"]
+      }
+  , Environment
+      {table = M.adjust (M.insert (nameICol c) c) i (table env), var = var env})
 
 translateLambda :: TableName -> Lambda -> Environment -> String
-translateLambda t (Lambda e) env
-    = subTranslate' e env
-    where
-      subTranslate' (Expr e1 o e2) env =
-          concat [subTranslate' e1 env, " ", operatorTranslate o, " ", subTranslate' e2 env]
-      subTranslate' (Conditional e1 e2 e3) env =
-          concat ["CASE WHEN ",
-                subTranslate' e1 env, " THEN ", subTranslate' e2 env,
-                " ELSE ", subTranslate' e3 env," END"]
-      subTranslate' (ConstString s) env = constantTranslate $ StringConst s
-      subTranslate' (ConstBool b) env = constantTranslate $ BoolConst b
-      subTranslate' (ConstInt i) env = constantTranslate $ IntConst i
-      subTranslate' (Ident s) env = case M.lookup s $ var env of
-          Just c -> constantTranslate $ valIVar c
-          Nothing -> if M.member s $ fetchTable env t
+translateLambda t (Lambda e) env = subTranslate' e env
+  where
+    subTranslate' (Expr e1 o e2) env =
+      concat
+        [ subTranslate' e1 env
+        , " "
+        , operatorTranslate o
+        , " "
+        , subTranslate' e2 env
+        ]
+    subTranslate' (Conditional e1 e2 e3) env =
+      concat
+        [ "CASE WHEN "
+        , subTranslate' e1 env
+        , " THEN "
+        , subTranslate' e2 env
+        , " ELSE "
+        , subTranslate' e3 env
+        , " END"
+        ]
+    subTranslate' (ConstString s) env = constantTranslate $ StringConst s
+    subTranslate' (ConstBool b) env = constantTranslate $ BoolConst b
+    subTranslate' (ConstInt i) env = constantTranslate $ IntConst i
+    subTranslate' (Ident s) env =
+      case M.lookup s $ var env of
+        Just c -> constantTranslate $ valIVar c
+        Nothing ->
+          if M.member s $ fetchTable env t
             then s
             else error "Static error: given column does not exist"
 
@@ -254,26 +270,50 @@ doOperationDecouple :: Environment -> String -> [String] -> (Code, Environment)
 doOperationDecouple env i ss =
   ( Code
       { upgrade =
-          [ "CREATE TABLE " ++ decoupledName ++" (" ++
-            nameICol columnPK ++ " " ++ typeTranslate (typeICol columnPK) ++ " PRIMARY KEY, "
-            ++ intercalate ", " (map (\(colString, colType) -> concat [colString, " ", typeTranslate colType]) (fetched env i ss))
-            ++ ");"
-          , "INSERT INTO " ++ decoupledName ++ " ("
-            ++ "SELECT "
-            ++ nameICol columnPK ++ ", " ++ nameInsert ", " ++ " FROM " ++ i ++ ");"
-          , "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ nameInsert ", DROP COLUMN " ++ ";"
+          [ "CREATE TABLE " ++
+            decoupledName ++
+            " (" ++
+            nameICol columnPK ++
+            " " ++
+            typeTranslate (typeICol columnPK) ++
+            " PRIMARY KEY, " ++
+            intercalate
+              ", "
+              (map
+                 (\(colString, colType) ->
+                    concat [colString, " ", typeTranslate colType])
+                 (fetched env i ss)) ++
+            ");"
+          , "INSERT INTO " ++
+            decoupledName ++
+            " (" ++
+            "SELECT " ++
+            nameICol columnPK ++
+            ", " ++ nameInsert ", " ++ " FROM " ++ i ++ ");"
+          , "ALTER TABLE " ++
+            i ++ " DROP COLUMN " ++ nameInsert ", DROP COLUMN " ++ ";"
           ]
       , downgrade =
-          [ "ALTER TABLE " ++ i ++ " ADD COLUMN " ++ nameTypeInsert ", ADD COLUMN " ++ ";"
-          , "UPDATE " ++ i ++ " "
-          ++ "SET " ++ downgradeUpdate ++ " "
-          ++ "FROM " ++ decoupledName ++ " "
-          ++ "WHERE " ++ i ++ "." ++ nameICol columnPK ++ " = " ++ decoupledName ++ "." ++ nameICol columnPK
-          ++ ";"
+          [ "ALTER TABLE " ++
+            i ++ " ADD COLUMN " ++ nameTypeInsert ", ADD COLUMN " ++ ";"
+          , "UPDATE " ++
+            i ++
+            " " ++
+            "SET " ++
+            downgradeUpdate ++
+            " " ++
+            "FROM " ++
+            decoupledName ++
+            " " ++
+            "WHERE " ++
+            i ++
+            "." ++
+            nameICol columnPK ++
+            " = " ++ decoupledName ++ "." ++ nameICol columnPK ++ ";"
           , "DROP TABLE " ++ decoupledName ++ ";"
           ]
       }
-  , Environment { table = addAndRemove $ table env, var = var env })
+  , Environment {table = addAndRemove $ table env, var = var env})
   where
     columnPK :: IColumn
     columnPK = getPK env i
@@ -288,7 +328,9 @@ doOperationDecouple env i ss =
     decoupledName = i ++ "_decoupled" ++ show (count 0)
     downgradeUpdate =
       intercalate ", " $
-      map (\(columnName, _) -> concat [columnName, " = ", decoupledName, ".", columnName]) $
+      map
+        (\(columnName, _) ->
+           concat [columnName, " = ", decoupledName, ".", columnName]) $
       fetched env i ss
     addAndRemove :: TableEnv -> TableEnv
     addAndRemove table = remove $ add table
@@ -296,9 +338,15 @@ doOperationDecouple env i ss =
         remove :: TableEnv -> TableEnv
         remove oldtable = foldr (\c t -> M.adjust (M.delete c) i t) oldtable ss
         add :: TableEnv -> TableEnv
-        add oldTable = foldr (\c t -> M.adjust (M.insert c (getCol c)) decoupledName t) (M.insert decoupledName M.empty oldTable) ss
+        add oldTable =
+          foldr
+            (\c t -> M.adjust (M.insert c (getCol c)) decoupledName t)
+            (M.insert decoupledName M.empty oldTable)
+            ss
         getCol :: String -> IColumn
-        getCol c = IColumn { nameICol = c, typeICol = typeICol old, colmodICol = colmodICol old }
+        getCol c =
+          IColumn
+            {nameICol = c, typeICol = typeICol old, colmodICol = colmodICol old}
           where
             old = fromJust $ M.lookup c (fetchTable env i)
     count :: Int -> Int
@@ -311,49 +359,77 @@ doOperationNormalize ::
      Environment -> TableName -> TableName -> [String] -> (Code, Environment)
 doOperationNormalize env i s ss =
   ( Code
-    { upgrade = [
+      { upgrade
       -- Create new table
-      "CREATE TABLE " ++ s ++ " ("
-      ++ "id SERIAL PRIMARY KEY, "
-      ++ intercalate
-           ", "
-           (map
-             (\(colString, colType) -> concat [colString, " ", typeTranslate colType])
-             (fetched env i ss))
-      ++ ");",
+         =
+          [ "CREATE TABLE " ++
+            s ++
+            " (" ++
+            "id SERIAL PRIMARY KEY, " ++
+            intercalate
+              ", "
+              (map
+                 (\(colString, colType) ->
+                    concat [colString, " ", typeTranslate colType])
+                 (fetched env i ss)) ++
+            ");"
       -- Insert data into new table
-      "INSERT INTO " ++ s
-      ++ " (" ++ nameInsert ", " ++ ") "
-      ++ "("
-      ++ "SELECT DISTINCT " ++ nameInsert ", " ++ " "
-      ++ "FROM " ++ i
-      ++ ");",
+          , "INSERT INTO " ++
+            s ++
+            " (" ++
+            nameInsert ", " ++
+            ") " ++
+            "(" ++
+            "SELECT DISTINCT " ++ nameInsert ", " ++ " " ++ "FROM " ++ i ++ ");"
       -- Create column in previous table
-      "ALTER TABLE " ++ i ++ " ADD COLUMN " ++ fkColumnName ++ " INTEGER REFERENCES " ++ s ++ " (id);",
+          , "ALTER TABLE " ++
+            i ++
+            " ADD COLUMN " ++
+            fkColumnName ++ " INTEGER REFERENCES " ++ s ++ " (id);"
       -- Update reference to new table (not sure if this is correct)
-      "UPDATE " ++ i ++ " SET " ++ fkColumnName ++ " = " ++ s ++ ".id "
-      ++ "FROM " ++ s ++ " "
-      ++ "WHERE " ++ intercalate "AND " (map (\(colString, _) -> concat [i, ".", colString, " = ", s, ".", colString]) (fetched env i ss))
-      ++ ";",
+          , "UPDATE " ++
+            i ++
+            " SET " ++
+            fkColumnName ++
+            " = " ++
+            s ++
+            ".id " ++
+            "FROM " ++
+            s ++
+            " " ++
+            "WHERE " ++
+            intercalate
+              "AND "
+              (map
+                 (\(colString, _) ->
+                    concat [i, ".", colString, " = ", s, ".", colString])
+                 (fetched env i ss)) ++
+            ";"
       -- Drop the columns that we exported from the old tables
-      "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ nameInsert ", DROP COLUMN " ++ ";"
-    ]
-      ,
-      downgrade = [
+          , "ALTER TABLE " ++
+            i ++ " DROP COLUMN " ++ nameInsert ", DROP COLUMN " ++ ";"
+          ]
+      , downgrade
         -- Re-add the columns
-        "ALTER TABLE " ++ i ++ " ADD COLUMN " ++ nameTypeInsert ", ADD COLUMN " ++ ";",
+         =
+          [ "ALTER TABLE " ++
+            i ++ " ADD COLUMN " ++ nameTypeInsert ", ADD COLUMN " ++ ";"
         -- Insert the data
-        "UPDATE " ++ i ++ " "
-        ++ "SET " ++ downgradeUpdate ++ " "
-        ++ "FROM " ++ s ++ " "
-        ++ "WHERE " ++ s ++ ".id = " ++ i ++ "." ++ fkColumnName
-        ++ ";",
+          , "UPDATE " ++
+            i ++
+            " " ++
+            "SET " ++
+            downgradeUpdate ++
+            " " ++
+            "FROM " ++
+            s ++
+            " " ++ "WHERE " ++ s ++ ".id = " ++ i ++ "." ++ fkColumnName ++ ";"
         -- Drop new table & column referencing it in old table
-        "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ fkColumnName ++ ";",
-        "DROP TABLE " ++ s ++ ";"
-      ]
-    }
-  , Environment { table = addAndRemove $ table env, var = var env })
+          , "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ fkColumnName ++ ";"
+          , "DROP TABLE " ++ s ++ ";"
+          ]
+      }
+  , Environment {table = addAndRemove $ table env, var = var env})
   where
     fkColumnName = s ++ "_id"
     nameInsert :: String -> String
@@ -373,9 +449,15 @@ doOperationNormalize env i s ss =
         remove :: TableEnv -> TableEnv
         remove oldtable = foldr (\c t -> M.adjust (M.delete c) i t) oldtable ss
         add :: TableEnv -> TableEnv
-        add oldTable = foldr (\c t -> M.adjust (M.insert c (getCol c)) s t) (M.insert s M.empty oldTable) ss
+        add oldTable =
+          foldr
+            (\c t -> M.adjust (M.insert c (getCol c)) s t)
+            (M.insert s M.empty oldTable)
+            ss
         getCol :: String -> IColumn
-        getCol c = IColumn { nameICol = c, typeICol = typeICol old, colmodICol = colmodICol old }
+        getCol c =
+          IColumn
+            {nameICol = c, typeICol = typeICol old, colmodICol = colmodICol old}
           where
             old = fromJust $ M.lookup c (fetchTable env i)
 
@@ -390,20 +472,28 @@ doOperationSplit env i ss s =
             nameICol columnPK ++
             " " ++
             typeTranslate (typeICol columnPK) ++
-            " PRIMARY KEY, " ++
-            nameTypeInsert ", " ++
-            ");"
+            " PRIMARY KEY, " ++ nameTypeInsert ", " ++ ");"
           , "INSERT INTO " ++
             s ++
             " (" ++
             "SELECT " ++
             nameICol columnPK ++
             ", " ++ nameInsert ", " ++ " FROM " ++ i ++ ");"
-          , "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ nameInsert ", DROP COLUMN " ++ ";"
+          , "ALTER TABLE " ++
+            i ++ " DROP COLUMN " ++ nameInsert ", DROP COLUMN " ++ ";"
           ]
       , downgrade =
-          [ "ALTER TABLE " ++ i ++ " " ++ "ADD COLUMN " ++ nameTypeInsert ", ADD COLUMN " ++ ";"
-          , "UPDATE " ++ i ++ " SET " ++ intercalate ", " (map (\(colString, _) -> concat [colString, " = ", s, ".", colString]) (fetched env i ss)) ++
+          [ "ALTER TABLE " ++
+            i ++ " " ++ "ADD COLUMN " ++ nameTypeInsert ", ADD COLUMN " ++ ";"
+          , "UPDATE " ++
+            i ++
+            " SET " ++
+            intercalate
+              ", "
+              (map
+                 (\(colString, _) ->
+                    concat [colString, " = ", s, ".", colString])
+                 (fetched env i ss)) ++
             " FROM " ++
             s ++
             " " ++
@@ -426,8 +516,8 @@ doOperationSplit env i ss s =
         prt :: (String, Type) -> String
         prt (s, t) = s ++ " " ++ typeTranslate t
 
-
-doOperationRename :: Environment -> TableName -> TableName -> (Code, Environment)
+doOperationRename ::
+     Environment -> TableName -> TableName -> (Code, Environment)
 doOperationRename env i s =
   ( Code
       { upgrade = ["ALTER TABLE " ++ i ++ " RENAME TO " ++ s ++ ";"]
@@ -462,10 +552,8 @@ extractLambda a =
   error ("Static error: Lambda expected, " ++ show a ++ " given.")
 
 extractColumn :: Argument -> IColumn
-extractColumn (ArgColumn (Column s t cms))
-  = IColumn { nameICol = s
-    , typeICol = t
-    , colmodICol = cms }
+extractColumn (ArgColumn (Column s t cms)) =
+  IColumn {nameICol = s, typeICol = t, colmodICol = cms}
 extractColumn a =
   error ("Static error: Column expected, " ++ show a ++ " given.")
 
@@ -501,13 +589,13 @@ operatorTranslate OperConcatenate = "||"
 operatorTranslate OperEquals = "="
 operatorTranslate OperNotEquals = "!="
 operatorTranslate OperLesserThan = "<"
-operatorTranslate OperLesserEquals =  "<="
-operatorTranslate OperGreaterThan =  ">"
-operatorTranslate OperGreaterEquals =  ">="
+operatorTranslate OperLesserEquals = "<="
+operatorTranslate OperGreaterThan = ">"
+operatorTranslate OperGreaterEquals = ">="
 
 doOperator :: Operator -> Constant -> Constant -> Constant
-doOperator OperConcatenate (StringConst s1) (StringConst s2)
-    = StringConst (s1 ++ s2)
+doOperator OperConcatenate (StringConst s1) (StringConst s2) =
+  StringConst (s1 ++ s2)
 doOperator OperEquals c1 c2 = BoolConst $ c1 == c2
 doOperator OperNotEquals c1 c2 = BoolConst $ c1 /= c2
 doOperator o (IntConst i1) (IntConst i2) = doOp' o i1 i2
@@ -521,7 +609,25 @@ doOperator o (IntConst i1) (IntConst i2) = doOp' o i1 i2
     doOp' OperLesserEquals i1 i2 = BoolConst (i1 <= i2)
     doOp' OperGreaterThan i1 i2 = BoolConst (i1 > i2)
     doOp' OperGreaterEquals i1 i2 = BoolConst (i1 >= i2)
-    doOp' o c1 c2 = error $ concat ["Static error: operator ",
-      show o, " not supported for ", show (IntConst c1), " and ", show (IntConst c2), "."]
-doOperator o c1 c2 = error $ concat ["Static error: operator ",
-    show o, " not supported for ", show c1, " and ", show c2, "."]
+    doOp' o c1 c2 =
+      error $
+      concat
+        [ "Static error: operator "
+        , show o
+        , " not supported for "
+        , show (IntConst c1)
+        , " and "
+        , show (IntConst c2)
+        , "."
+        ]
+doOperator o c1 c2 =
+  error $
+  concat
+    [ "Static error: operator "
+    , show o
+    , " not supported for "
+    , show c1
+    , " and "
+    , show c2
+    , "."
+    ]
