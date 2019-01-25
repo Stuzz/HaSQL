@@ -133,7 +133,7 @@ up1 ms env = up' ms' (initial, env)
     -- | The statements needed for the migrations, wrapped in a transaction.
     ms' = beginTransaction : ms ++ [commitTransaction]
     beginTransaction env' =
-      (Code {upgrade = ["BEGIN;"], downgrade = ["COMMIT"]}, env')
+      (Code {upgrade = ["BEGIN;"], downgrade = ["COMMIT;"]}, env')
     commitTransaction env' =
       (Code {upgrade = ["COMMIT;"], downgrade = ["BEGIN;"]}, env')
     process :: Migration -> (Code, Environment) -> (Code, Environment)
@@ -177,12 +177,12 @@ operstat OperationSplit iargs env =
     newTableName = extractString (args !! 1)
     columnNames = extractStringList (args !! 2)
 operstat OperationDecouple iargs env = doOperationDecouple env tableNameOld columnNames
-  where 
+  where
     args = map (\a -> a env) iargs
     tableNameOld = extractString (head args)
     columnNames = extractStringList (args !! 1)
 operstat OperationNormalize iargs env = doOperationNormalize env tableNameOld tableNameNew columnNames
-  where 
+  where
     args = map (\a -> a env) iargs
     tableNameOld = extractString (head args)
     tableNameNew = extractString (args !! 1)
@@ -220,13 +220,13 @@ doOperationAdd env i c lambda =
       { upgrade =
           [ "ALTER TABLE " ++ i ++
                 " ADD COLUMN " ++ nameICol c ++ " " ++
-                typeTranslate (typeICol c) ++ ";\n",
+                typeTranslate (typeICol c) ++ ";",
             "UPDATE " ++ i ++ " " ++
-                "SET " ++ nameICol c ++ " = " ++ translateLambda i lambda env ++ ";\n"
+                "SET " ++ nameICol c ++ " = " ++ translateLambda i lambda env ++ ";"
           ]
       , downgrade =
           [
-            "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ nameICol c ++ ";\n"
+            "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ nameICol c ++ ";"
           ]
       },
   Environment { table = M.adjust (M.insert (nameICol c) c) i (table env), var = var env})
@@ -254,21 +254,22 @@ doOperationDecouple :: Environment -> String -> [String] -> (Code, Environment)
 doOperationDecouple env i ss =
   ( Code
       { upgrade =
-          [ "CREATE TABLE " ++ decoupledName ++" ( " ++
-            nameICol columnPK ++ " " ++ show (typeICol columnPK) ++ " PRIMARY KEY NOT NULL,"
-            ++ concatMap (\(colString, colType) -> concat [colString, " ", typeTranslate colType, ","]) (fetched env i ss)
+          [ "CREATE TABLE " ++ decoupledName ++" (" ++
+            nameICol columnPK ++ " " ++ typeTranslate (typeICol columnPK) ++ " PRIMARY KEY, "
+            ++ intercalate ", " (map (\(colString, colType) -> concat [colString, " ", typeTranslate colType]) (fetched env i ss))
             ++ ");"
-          , "INSERT INTO " ++ decoupledName ++ " ( "
-            ++ "SELECT  "
-            ++ nameICol columnPK ++ ", " ++ nameInsert ", " ++ "FROM " ++ i ++ " " ++ ");"
+          , "INSERT INTO " ++ decoupledName ++ " ("
+            ++ "SELECT "
+            ++ nameICol columnPK ++ ", " ++ nameInsert ", " ++ " FROM " ++ i ++ ");"
           , "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ nameInsert ", DROP COLUMN " ++ ";"
           ]
       , downgrade =
-          [ "ALTER TABLE " ++ i ++ "ADD COLUMN " ++ nameTypeInsert ", ADD COLUMN " ++ ";"
-          , "INSERT INTO " ++ i ++ " ( " ++ nameInsert ", " ++" )" ++ " ( "
-          ++ "SELECT " ++ nameInsert ", "
+          [ "ALTER TABLE " ++ i ++ " ADD COLUMN " ++ nameTypeInsert ", ADD COLUMN " ++ ";"
+          , "UPDATE " ++ i ++ " "
+          ++ "SET " ++ downgradeUpdate ++ " "
           ++ "FROM " ++ decoupledName ++ " "
-          ++ "WHERE " ++ i ++ "." ++ nameICol columnPK ++ " == " ++ decoupledName ++ "." ++ nameICol columnPK ++ ");"
+          ++ "WHERE " ++ i ++ "." ++ nameICol columnPK ++ " = " ++ decoupledName ++ "." ++ nameICol columnPK
+          ++ ";"
           , "DROP TABLE " ++ decoupledName ++ ";"
           ]
       }
@@ -280,11 +281,15 @@ doOperationDecouple env i ss =
     nameInsert x = intercalate x ss
     nameTypeInsert :: String -> String
     nameTypeInsert x = intercalate x (map prt (fetched env i ss))
-      where       
+      where
         prt :: (String, Type) -> String
         prt (s, t) = s ++ " " ++ typeTranslate t
     decoupledName :: String
     decoupledName = i ++ "_decoupled" ++ show (count 0)
+    downgradeUpdate =
+      intercalate ", " $
+      map (\(columnName, _) -> concat [columnName, " = ", decoupledName, ".", columnName]) $
+      fetched env i ss
     addAndRemove :: TableEnv -> TableEnv
     addAndRemove table = remove $ add table
       where
@@ -308,44 +313,60 @@ doOperationNormalize env i s ss =
   ( Code
     { upgrade = [
       -- Create new table
-      "CREATE TABLE " ++ s ++ " ( "
-      ++ "ID INT PRIMARY KEY NOT NULL, "
-      ++ concatMap (\(colString, colType) -> concat [colString, " ", typeTranslate colType, ","]) (fetched env i ss)
-      ++ " );",
+      "CREATE TABLE " ++ s ++ " ("
+      ++ "id SERIAL PRIMARY KEY, "
+      ++ intercalate
+           ", "
+           (map
+             (\(colString, colType) -> concat [colString, " ", typeTranslate colType])
+             (fetched env i ss))
+      ++ ");",
       -- Insert data into new table
-      "INSERT INTO " ++ s ++ " ( "
+      "INSERT INTO " ++ s
+      ++ " (" ++ nameInsert ", " ++ ") "
+      ++ "("
       ++ "SELECT DISTINCT " ++ nameInsert ", " ++ " "
       ++ "FROM " ++ i
-      ++ " );",
+      ++ ");",
       -- Create column in previous table
-      "ALTER TABLE " ++ i ++ " ADD COLUMN " ++ s ++ " INTEGER",
+      "ALTER TABLE " ++ i ++ " ADD COLUMN " ++ fkColumnName ++ " INTEGER REFERENCES " ++ s ++ " (id);",
       -- Update reference to new table (not sure if this is correct)
-      "UPDATE " ++ i ++ " SET " ++ i ++ "." ++ s ++ " = " ++ s ++ ".id"
+      "UPDATE " ++ i ++ " SET " ++ fkColumnName ++ " = " ++ s ++ ".id "
       ++ "FROM " ++ s ++ " "
-      ++ "WHERE " ++ intercalate "AND " (map (\(colString, _) -> concat [i, ".", colString, " == ", s, ".", colString]) (fetched env i ss)),
-      -- Add foreign key constraint
-      "ALTER TABLE " ++ i ++ " ADD CONSTRAINT fk_" ++ i ++ "_" ++ s ++ " FOREIGN KEY (" ++ s ++ ") REFERENCES " ++ s ++ " (id);",
+      ++ "WHERE " ++ intercalate "AND " (map (\(colString, _) -> concat [i, ".", colString, " = ", s, ".", colString]) (fetched env i ss))
+      ++ ";",
       -- Drop the columns that we exported from the old tables
       "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ nameInsert ", DROP COLUMN " ++ ";"
     ]
       ,
       downgrade = [
         -- Re-add the columns
-        "ALTER TABLE " ++ i ++ " ADD COLUMN " ++ nameInsert ", ADD COLUMN " ++ ";",
+        "ALTER TABLE " ++ i ++ " ADD COLUMN " ++ nameTypeInsert ", ADD COLUMN " ++ ";",
         -- Insert the data
-        "INSERT INTO " ++ i ++ " ( "
-        ++ "SELECT " ++ nameInsert ", " ++ " "
+        "UPDATE " ++ i ++ " "
+        ++ "SET " ++ downgradeUpdate ++ " "
         ++ "FROM " ++ s ++ " "
-        ++ "WHERE " ++ s ++ ".id == " ++ i ++ "." ++ s
-        ++ ");",
+        ++ "WHERE " ++ s ++ ".id = " ++ i ++ "." ++ fkColumnName
+        ++ ";",
         -- Drop new table & column referencing it in old table
-        "DROP TABLE " ++ s ++ " CASCADE;"
+        "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ fkColumnName ++ ";",
+        "DROP TABLE " ++ s ++ ";"
       ]
     }
   , Environment { table = addAndRemove $ table env, var = var env })
   where
+    fkColumnName = s ++ "_id"
     nameInsert :: String -> String
     nameInsert x = intercalate x (map fst (fetched env i ss))
+    nameTypeInsert :: String -> String
+    nameTypeInsert x = intercalate x (map prt (fetched env i ss))
+      where
+        prt :: (String, Type) -> String
+        prt (s, t) = s ++ " " ++ typeTranslate t
+    downgradeUpdate =
+      intercalate ", " $
+      map (\(columnName, _) -> concat [columnName, " = ", s, ".", columnName]) $
+      fetched env i ss
     addAndRemove :: TableEnv -> TableEnv
     addAndRemove table = remove $ add table
       where
@@ -365,38 +386,31 @@ doOperationSplit env i ss s =
       { upgrade =
           [ "CREATE TABLE " ++
             s ++
-            " ( " ++
+            " (" ++
             nameICol columnPK ++
             " " ++
             typeTranslate (typeICol columnPK) ++
-            " PRIMARY KEY NOT NULL, " ++
+            " PRIMARY KEY, " ++
             nameTypeInsert ", " ++
             ");"
           , "INSERT INTO " ++
             s ++
-            " ( " ++
+            " (" ++
             "SELECT " ++
             nameICol columnPK ++
-            ", " ++ nameInsert ", " ++ " FROM " ++ i ++ " " ++ ");"
+            ", " ++ nameInsert ", " ++ " FROM " ++ i ++ ");"
           , "ALTER TABLE " ++ i ++ " DROP COLUMN " ++ nameInsert ", DROP COLUMN " ++ ";"
           ]
       , downgrade =
           [ "ALTER TABLE " ++ i ++ " " ++ "ADD COLUMN " ++ nameTypeInsert ", ADD COLUMN " ++ ";"
-          , "INSERT INTO " ++
-            i ++
-            " ( " ++
-            nameInsert ", " ++
-            " )" ++
-            " ( " ++
-            "SELECT " ++
-            nameInsert ", " ++
-            "FROM " ++
+          , "UPDATE " ++ i ++ " SET " ++ intercalate ", " (map (\(colString, _) -> concat [colString, " = ", s, ".", colString]) (fetched env i ss)) ++
+            " FROM " ++
             s ++
             " " ++
-            "WHERE " ++
+            " WHERE " ++
             i ++
             "." ++
-            nameICol columnPK ++ " == " ++ s ++ "." ++ nameICol columnPK ++ ");"
+            nameICol columnPK ++ " = " ++ s ++ "." ++ nameICol columnPK ++ ";"
           , "DROP TABLE " ++ s ++ ";"
           ]
       }
@@ -408,16 +422,16 @@ doOperationSplit env i ss s =
     nameInsert x = intercalate x ss
     nameTypeInsert :: String -> String
     nameTypeInsert x = intercalate x (map prt (fetched env i ss))
-      where       
+      where
         prt :: (String, Type) -> String
         prt (s, t) = s ++ " " ++ typeTranslate t
-    
+
 
 doOperationRename :: Environment -> TableName -> TableName -> (Code, Environment)
 doOperationRename env i s =
   ( Code
-      { upgrade = ["ALTER TABLE " ++ i ++ " RENAME TO " ++ s]
-      , downgrade = ["ALTER TABLE " ++ s ++ " RENAME TO " ++ i]
+      { upgrade = ["ALTER TABLE " ++ i ++ " RENAME TO " ++ s ++ ";"]
+      , downgrade = ["ALTER TABLE " ++ s ++ " RENAME TO " ++ i ++ ";"]
       }
   , newEnv)
   where
@@ -467,10 +481,11 @@ codeConcat c1 c2 =
     , downgrade = downgrade c1 ++ downgrade c2
     }
 
+-- XXX: This should be 'SERIAL' for key columns
 typeTranslate :: Type -> String
-typeTranslate TypeBool = "boolean"
-typeTranslate TypeString = "varchar"
-typeTranslate TypeInt = "integer"
+typeTranslate TypeBool = "BOOLEAN"
+typeTranslate TypeString = "VARCHAR"
+typeTranslate TypeInt = "INTEGER"
 
 constantTranslate :: Constant -> String
 constantTranslate (BoolConst x) = show x

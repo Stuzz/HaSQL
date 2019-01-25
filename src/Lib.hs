@@ -6,9 +6,8 @@ import Debug.Trace
 
 import Algebra
 import qualified Dynamic
-
--- import Lexer
--- import Parser
+import Lexer
+import Parser
 import qualified Static
 import Syntax
 
@@ -17,7 +16,7 @@ import Syntax
 -- TODO: This should of course return SQL files for both the up and the down
 --       migration.
 parseSql :: String -> Dynamic.Code
-parseSql = const (compile example)
+parseSql = compile . parse . scan
 
 -- XXX: Dangerous, don't touch, might explode
 compile :: Hasql -> Dynamic.Code
@@ -115,7 +114,48 @@ exampleNorm = Hasql init up
         [ FunctionCall
             OperationNormalize
             [ ArgExpression (ConstString "users")
-            , ArgExpression (ConstString "aGes")
+            , ArgExpression (ConstString "ages")
+            , ArgStringList ["age"]
+            ]
+        ]
+
+exampleDecouple :: Hasql
+exampleDecouple = Hasql init up
+  where
+    init =
+      Init
+        [ Table
+            "users"
+            [ Column "id" TypeInt [Primary]
+            , Column "first_name" TypeString []
+            , Column "age" TypeInt []
+            ]
+        ]
+    up =
+      Up
+        [ FunctionCall
+            OperationDecouple
+            [ArgExpression (ConstString "users"), ArgStringList ["first_name"]]
+        ]
+
+exampleSplit :: Hasql
+exampleSplit = Hasql init up
+  where
+    init =
+      Init
+        [ Table
+            "users"
+            [ Column "id" TypeInt [Primary]
+            , Column "first_name" TypeString []
+            , Column "age" TypeInt []
+            ]
+        ]
+    up =
+      Up
+        [ FunctionCall
+            OperationSplit
+            [ ArgExpression (ConstString "users")
+            , ArgExpression (ConstString "names")
             , ArgStringList ["first_name"]
             ]
         ]
