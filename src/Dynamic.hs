@@ -309,7 +309,7 @@ doOperationNormalize env i s ss =
     { upgrade = [
       -- Create new table
       "CREATE TABLE " ++ s ++ " ( "
-      ++ "ID INT PRIMARY KEY NOT NULL, "
+      ++ "id SERIAL PRIMARY KEY, "
       ++ concatMap (\(colString, colType) -> concat [colString, " ", typeTranslate colType, ","]) (fetched env i ss)
       ++ " );",
       -- Insert data into new table
