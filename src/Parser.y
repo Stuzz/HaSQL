@@ -85,7 +85,7 @@ Arguments : {- empty -}                                   { [] }
 Argument  : Expression                                    { ArgExpression $1 }
           | Lambda                                        { ArgLambda $1 }
           | Column                                        { ArgColumn $1 }
-          | "[" Idents "]"                                { ArgStringList $2 }
+          | "[" Strings "]"                               { ArgStringList $2 }
 
 Lambda         : "\\" Expression                          { Lambda $2 }
 Expression     : Expression ThirdOperator SExpression     { Expr $1 $2 $3 }
@@ -112,12 +112,12 @@ SecondOperator : "+"                                      { OperAdd }
 FirstOperator  : "/"                                      { OperDivide }
                | "*"                                      { OperMultiply }
 
-Type   : "Bool"                                           { TypeBool }
-       | "Int"                                            { TypeInt }
-       | "String"                                         { TypeString }
-Idents : {- idents -}                                     { [] }
-       | Ident                                            { [$1] }
-       | Ident "," Idents                                 { $1 : $3 }
+Type    : "Bool"                                           { TypeBool }
+        | "Int"                                            { TypeInt }
+        | "String"                                         { TypeString }
+Strings : {- Strings -}                                    { [] }
+        | String                                           { [$1] }
+        | String "," Strings                               { $1 : $3 }
 
 {
 happyError :: [Token] -> a
