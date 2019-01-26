@@ -1,0 +1,16 @@
+init
+{
+    Table users
+    {
+        primary id : Int;
+        first_name : String;
+        age : Int;
+    }
+}
+up
+{
+    Int adult_age = 18;
+
+    Add("users", is_adult : Bool, \age >= adult_age ? True : False);
+    Rename("users", "candidates");
+}

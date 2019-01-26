@@ -1,0 +1,13 @@
+init
+{
+    Table users
+    {
+	    primary id : Int;
+	    first_name : String;
+	    age : Int;
+    }
+}
+up
+{
+	Split("users", "names", [first_name]);
+}

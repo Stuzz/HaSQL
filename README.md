@@ -14,9 +14,18 @@
 Use [Stack](https://docs.haskellstack.org/en/stable/README/) to run the
 application:
 
-``` shell
+```shell
 stack run
 ```
+
+The examples mentioned in the report are located in the `examples/` directory.
+They can be run by passing them through STDIN:
+
+```shell
+stack run < examples/decouple.hasql
+```
+
+Additional examples are available in AST form, located in `src/lib.hs`.
 
 ## Project structure
 
@@ -24,17 +33,9 @@ All source files are contained in the `src` directory. This contains the
 following files:
 
 | File         | Description                                                              |
-| ------------ | -------------------------------------------------------------------------|
+| ------------ | ------------------------------------------------------------------------ |
 | `Algebra.hs` | This contains the algebraic definition used in the fold over the AST     |
 | `Static.hs`  | Contains the code for the Static Semantics                               |
 | `Dynamic.hs` | Contains the code representing the Dynamic Semantics for code generation |
 | `Lib.hs`     | Contains examples to be run                                              |
 | `Syntax.hs`  | Contains the Abstract syntax of our language in Haskell Data types       |
-
-How to run an example:
-
-1. Compile Lib.hs
-2. Then run one of the example functions (`example`, `exampleAdd`,
-   `exampleNorm`, `exampleDecouple`, `exampleSplit`) as follows
-3. Execute `stack run`
-4. Then run an example by running: `compile [example_name]`
