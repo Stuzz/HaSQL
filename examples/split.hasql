@@ -9,5 +9,5 @@ init
 }
 up
 {
-	Split("users", "names", [first_name]);
+	Split("users", "names", ["first_name"]);
 }
